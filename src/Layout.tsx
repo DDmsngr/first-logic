@@ -85,7 +85,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh">
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-[var(--d-line)] bg-[var(--d-surface)]/85 backdrop-blur md:flex">
+      <aside className="sticky top-0 hidden h-dvh w-60 print:!hidden shrink-0 flex-col border-r border-[var(--d-line)] bg-[var(--d-surface)]/85 backdrop-blur md:flex">
         <div className="border-b border-[var(--d-line)] px-4 py-4">
           <Brand sub="Engineering" />
         </div>
@@ -131,7 +131,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="dash-safe-top sticky top-0 z-30 flex items-center gap-3 border-b border-[var(--d-line)] bg-[var(--d-bg)]/85 px-4 py-2.5 backdrop-blur md:px-6">
+        <header className="dash-safe-top sticky top-0 z-30 flex print:hidden items-center gap-3 border-b border-[var(--d-line)] bg-[var(--d-bg)]/85 px-4 py-2.5 backdrop-blur md:px-6">
           <div className="relative md:hidden"><Brand compact /></div>
           <form role="search" className="relative ml-auto w-full max-w-md" onSubmit={e => { e.preventDefault(); if (q.trim()) nav(`/search?q=${encodeURIComponent(q.trim())}`) }}>
             <Search className="dash-muted pointer-events-none absolute left-3 top-3 h-4 w-4" aria-hidden />
@@ -147,9 +147,9 @@ export default function Layout({ children }: { children: ReactNode }) {
           </NavLink>
         </header>
 
-        <main className="mx-auto w-full min-w-0 max-w-[1600px] flex-1 px-4 pb-28 pt-5 md:px-6 md:pb-10">{children}</main>
+        <main className="mx-auto w-full min-w-0 max-w-[1600px] flex-1 px-4 pb-28 pt-5 md:px-6 md:pb-10 print:p-0">{children}</main>
 
-        <nav aria-label="Навигация" className="dash-safe-bottom fixed inset-x-0 bottom-0 z-40 flex border-t border-[var(--d-line)] bg-[var(--d-surface)]/95 backdrop-blur md:hidden">
+        <nav aria-label="Навигация" className="dash-safe-bottom fixed inset-x-0 bottom-0 z-40 flex print:hidden border-t border-[var(--d-line)] bg-[var(--d-surface)]/95 backdrop-blur md:hidden">
           {ALL.filter(n => n.mobile).map(n => (
             <NavLink key={n.to} to={n.to} end={n.end}
               className={({ isActive }) => `relative flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] ${isActive ? 'text-[var(--d-accent)]' : 'text-[var(--d-muted)]'}`}>
