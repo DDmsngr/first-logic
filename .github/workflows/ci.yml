@@ -34,3 +34,6 @@ jobs:
         run: |
           npx tsc -p bot/tsconfig.json
           node --test bot/test/*.test.mjs
+
+      - name: База — миграции и функции на PGlite
+        run: npm run test:db
