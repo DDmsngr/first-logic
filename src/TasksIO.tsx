@@ -34,7 +34,7 @@ export default function TasksIO({ exportTasks }: { exportTasks: Task[] }) {
     <>
       {isAdmin && (
         <button className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => setImporting(true)}>
-          <FileUp className="h-4 w-4" aria-hidden /> Импорт
+          <FileUp className="h-4 w-4" aria-hidden /> Импорт из JSON
         </button>
       )}
       <button className="dash-btn dash-btn-ghost dash-btn-sm" onClick={doExport} disabled={exportTasks.length === 0}

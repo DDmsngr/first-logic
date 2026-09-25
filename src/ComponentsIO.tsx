@@ -27,7 +27,7 @@ export default function ComponentsIO() {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button className="dash-btn dash-btn-ghost" onClick={() => setOpen(true)}><FileUp className="h-4 w-4" aria-hidden /> Импорт</button>
+      <button className="dash-btn dash-btn-ghost" onClick={() => setOpen(true)}><FileUp className="h-4 w-4" aria-hidden /> Импорт из JSON</button>
       {open && <ImportModal onClose={() => setOpen(false)} />}
     </>
   )
