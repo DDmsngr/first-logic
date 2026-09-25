@@ -1,9 +1,9 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import {
-  COMPONENT_STATUSES, UNITS, createDict, deleteDict, fetchDicts, fetchRates, fetchSuppliers, needsReorder,
-  updateDict, type Component, type ComponentInput, type Dict, type DictKind, type SupplierInput,
+  COMPONENT_STATUSES, UNITS, createDict, deleteDict, fetchDicts, fetchProducts, fetchRates, fetchSuppliers, needsReorder,
+  updateDict, type Component, type ComponentInput, type Dict, type DictKind, type ProductInput, type Spec, type SupplierInput,
 } from './catalog'
 import { useWorkspace } from './auth'
 import { CURRENCIES, fmtMoney, fmtQty, parseAmount, toRub, type Currency } from './money'
@@ -23,6 +23,24 @@ export function useDicts(kind: DictKind) {
 export function useSuppliers() {
   const { workspace } = useWorkspace()
   return useQuery({ queryKey: ['suppliers', workspace.id], queryFn: () => fetchSuppliers(workspace.id) })
+}
+
+export function useProducts() {
+  const { workspace } = useWorkspace()
+  return useQuery({ queryKey: ['products', workspace.id], queryFn: () => fetchProducts(workspace.id) })
+}
+
+/** Выбор изделия для задачи, расхода и т. п. */
+export function ProductSelect({ value, onChange, disabled, label = 'Изделие' }: {
+  value: string | null; onChange: (id: string | null) => void; disabled?: boolean; label?: string
+}) {
+  const products = useProducts()
+  return (
+    <select className="dash-input" aria-label={label} disabled={disabled} value={value ?? ''} onChange={e => onChange(e.target.value || null)}>
+      <option value="">Не связана с изделием</option>
+      {products.data?.map(p => <option key={p.id} value={p.id}>{p.name}{p.version ? ` ${p.version}` : ''}</option>)}
+    </select>
+  )
 }
 
 // ── отображение ─────────────────────────────────────────────────────────────
@@ -272,3 +290,108 @@ export function DictEditor({ kind, title, open, onClose, usage }: {
   )
 }
 
+
+// ── форма изделия ───────────────────────────────────────────────────────────
+
+export const EMPTY_PRODUCT: ProductInput = {
+  name: '', sku: null, version: null, status_id: null, description: '', specs: [],
+  planned_price: null, actual_price: null, price_currency: 'RUB', notes: '',
+}
+
+const priceOrNull = (v: string) => (v.trim() ? parseAmount(v) : null)
+
+export function ProductForm({ initial, submitLabel, busy, onSubmit, onCancel }: {
+  initial: ProductInput; submitLabel: string; busy?: boolean
+  onSubmit: (p: ProductInput) => void; onCancel?: () => void
+}) {
+  const statuses = useDicts('product_status')
+  const toast = useToast()
+  const [f, setF] = useState({
+    name: initial.name, sku: str(initial.sku), version: str(initial.version), status_id: str(initial.status_id),
+    description: initial.description, planned: initial.planned_price === null ? '' : String(initial.planned_price),
+    actual: initial.actual_price === null ? '' : String(initial.actual_price), currency: initial.price_currency, notes: initial.notes,
+  })
+  const set = <K extends keyof typeof f>(k: K) => (v: (typeof f)[K]) => setF(x => ({ ...x, [k]: v }))
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    const planned = priceOrNull(f.planned), actual = priceOrNull(f.actual)
+    if ([planned, actual].some(v => v !== null && (!Number.isFinite(v) || v < 0))) { toast('Цены должны быть неотрицательными числами', 'error'); return }
+    onSubmit({
+      name: f.name.trim(), sku: orNull(f.sku), version: orNull(f.version), status_id: f.status_id || null,
+      description: f.description, specs: initial.specs, planned_price: planned, actual_price: actual,
+      price_currency: f.currency, notes: f.notes,
+    })
+  }
+  return (
+    <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
+      <div className="sm:col-span-2"><Field label="Название"><input className="dash-input" required autoFocus maxLength={200} value={f.name} onChange={e => set('name')(e.target.value)} placeholder="Усилитель 100W УКВ" /></Field></div>
+      <Field label="Внутренний артикул"><input className="dash-input dash-mono" value={f.sku} onChange={e => set('sku')(e.target.value)} placeholder="FL-AMP-100" /></Field>
+      <Field label="Версия"><input className="dash-input" value={f.version} onChange={e => set('version')(e.target.value)} placeholder="v1.2" /></Field>
+      <div className="sm:col-span-2">
+        <Field label="Статус">
+          <select className="dash-input" value={f.status_id} onChange={e => set('status_id')(e.target.value)}>
+            <option value="">Без статуса</option>
+            {statuses.data?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </Field>
+      </div>
+      <MoneyInput label="Плановая цена продажи" amount={f.planned} currency={f.currency} onAmount={set('planned')} onCurrency={set('currency')} />
+      <MoneyInput label="Фактическая цена продажи" amount={f.actual} currency={f.currency} onAmount={set('actual')} onCurrency={set('currency')} />
+      <div className="sm:col-span-2"><Field label="Описание"><textarea className="dash-input" value={f.description} onChange={e => set('description')(e.target.value)} placeholder="Назначение, диапазон, особенности" /></Field></div>
+      <div className="sm:col-span-2"><Field label="Заметки"><textarea className="dash-input" value={f.notes} onChange={e => set('notes')(e.target.value)} /></Field></div>
+      <div className="flex justify-end gap-2 sm:col-span-2">
+        {onCancel && <button type="button" className="dash-btn dash-btn-ghost" onClick={onCancel}>Отмена</button>}
+        <button className="dash-btn" disabled={busy || !f.name.trim()}>{busy ? 'Сохраняем…' : submitLabel}</button>
+      </div>
+    </form>
+  )
+}
+
+// ── характеристики ──────────────────────────────────────────────────────────
+
+/** Таблица «параметр — значение — единица»: добавлять, править, двигать, удалять. */
+export function SpecsEditor({ specs, busy, onSave, onCancel }: {
+  specs: Spec[]; busy?: boolean; onSave: (s: Spec[]) => void; onCancel: () => void
+}) {
+  const [rows, setRows] = useState<Spec[]>(specs.length ? specs : [{ name: '', value: '', unit: '' }])
+  const upd = (i: number, k: keyof Spec, v: string) => setRows(r => r.map((x, j) => (j === i ? { ...x, [k]: v } : x)))
+  const move = (i: number, d: -1 | 1) => setRows(r => {
+    const j = i + d
+    if (j < 0 || j >= r.length) return r
+    const n = [...r]
+    const tmp = n[i]
+    n[i] = n[j]
+    n[j] = tmp
+    return n
+  })
+  const save = (e: FormEvent) => {
+    e.preventDefault()
+    onSave(rows.map(r => ({ name: r.name.trim(), value: r.value.trim(), unit: r.unit?.trim() || undefined })).filter(r => r.name))
+  }
+  return (
+    <form onSubmit={save}>
+      <div className="dash-label mb-1.5 hidden grid-cols-[1.4fr_1fr_0.6fr_auto] gap-2 sm:grid"><span>Параметр</span><span>Значение</span><span>Ед.</span><span className="w-24" /></div>
+      <ul className="space-y-2">
+        {rows.map((r, i) => (
+          <li key={i} className="grid grid-cols-[1fr_5rem] gap-2 border-b border-[var(--d-line)] pb-2 sm:grid-cols-[1.4fr_1fr_0.6fr_auto] sm:border-0 sm:pb-0">
+            <input className="dash-input col-span-2 sm:col-span-1" placeholder="Выходная мощность" value={r.name} onChange={e => upd(i, 'name', e.target.value)} aria-label="Параметр" />
+            <input className="dash-input" placeholder="100" value={r.value} onChange={e => upd(i, 'value', e.target.value)} aria-label="Значение" />
+            <input className="dash-input" placeholder="Вт" value={r.unit ?? ''} onChange={e => upd(i, 'unit', e.target.value)} aria-label="Единица" />
+            <div className="col-span-2 flex justify-end gap-1 sm:col-span-1 sm:w-24">
+              <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Выше"><ArrowUp className="h-3.5 w-3.5" aria-hidden /></button>
+              <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => move(i, 1)} disabled={i === rows.length - 1} aria-label="Ниже"><ArrowDown className="h-3.5 w-3.5" aria-hidden /></button>
+              <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => setRows(x => x.filter((_, j) => j !== i))} aria-label="Удалить строку"><Trash2 className="h-3.5 w-3.5" aria-hidden /></button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-3 flex flex-wrap justify-between gap-2">
+        <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => setRows(r => [...r, { name: '', value: '', unit: '' }])}><Plus className="h-4 w-4" aria-hidden /> Строка</button>
+        <div className="flex gap-2">
+          <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" onClick={onCancel}>Отмена</button>
+          <button className="dash-btn dash-btn-sm" disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить'}</button>
+        </div>
+      </div>
+    </form>
+  )
+}

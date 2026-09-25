@@ -1,3 +1,4 @@
+import { useProducts } from '../catalogParts'
 import { useEffect, useMemo, useRef, useState, type PointerEventHandler } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -49,6 +50,7 @@ function useFilters() {
     priority: sp.get('priority') ? [sp.get('priority') as Priority] : undefined,
     assignee: sp.get('assignee') ?? undefined,
     label: sp.get('label') ?? undefined,
+    product: sp.get('product') ?? undefined,
     due: (sp.get('due') as TaskFilters['due']) ?? undefined,
     q: sp.get('q') ?? undefined,
     sort: (sp.get('sort') as TaskFilters['sort']) ?? 'priority',
@@ -64,7 +66,7 @@ function useFilters() {
     return next
   }, { replace: true })
   const clear = () => latest.current(prev => new URLSearchParams(prev.get('view') ? { view: prev.get('view')! } : {}), { replace: true })
-  const active = ['status', 'priority', 'assignee', 'label', 'due', 'q'].some(k => sp.get(k))
+  const active = ['status', 'priority', 'assignee', 'label', 'product', 'due', 'q'].some(k => sp.get(k))
   return { filters, set, clear, active, view: sp.get('view') === 'list' ? 'list' : 'board' } as const
 }
 
@@ -87,6 +89,7 @@ export default function Tasks() {
   })
 
   const active_ = members.filter(m => m.status === 'active' && m.user_id)
+  const products = useProducts()
   const isTouch = useIsCoarsePointer()
 
   return (
@@ -115,7 +118,7 @@ export default function Tasks() {
         }
       />
 
-      <form role="search" aria-label="Фильтры задач" className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7" onSubmit={e => e.preventDefault()}>
+      <form role="search" aria-label="Фильтры задач" className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-5" onSubmit={e => e.preventDefault()}>
         <input className="dash-input col-span-2" type="search" placeholder="Поиск по задачам" aria-label="Поиск по задачам" value={qDraft} onChange={e => setQDraft(e.target.value)} />
         <select className="dash-input" aria-label="Статус" value={filters.status?.[0] ?? ''} onChange={e => set('status', e.target.value)}>
           <option value="">Все статусы</option>
@@ -133,6 +136,11 @@ export default function Tasks() {
         <select className="dash-input" aria-label="Метка" value={filters.label ?? ''} onChange={e => set('label', e.target.value)}>
           <option value="">Все метки</option>
           {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+        <select className="dash-input" aria-label="Изделие" value={filters.product ?? ''} onChange={e => set('product', e.target.value)}>
+          <option value="">Все изделия</option>
+          <option value="none">Без изделия</option>
+          {products.data?.map(p => <option key={p.id} value={p.id}>{p.name}{p.version ? ` ${p.version}` : ''}</option>)}
         </select>
         <select className="dash-input" aria-label="Срок" value={filters.due ?? ''} onChange={e => set('due', e.target.value)}>
           <option value="">Любой срок</option>

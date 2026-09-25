@@ -69,6 +69,8 @@ export async function fetchTasks(projectId: string, f: TaskFilters, limit = 300)
   if (f.priority?.length) q = q.in('priority', f.priority)
   if (f.assignee === 'none') q = q.is('assignee_id', null)
   else if (f.assignee) q = q.eq('assignee_id', f.assignee)
+  if (f.product === 'none') q = q.is('product_id', null)
+  else if (f.product) q = q.eq('product_id', f.product)
   if (f.due === 'overdue') q = q.lt('due_date', todayIso()).neq('status', 'done')
   if (f.due === 'week') q = q.gte('due_date', todayIso()).lte('due_date', plusDaysIso(7)).neq('status', 'done')
   if (f.due === 'none') q = q.is('due_date', null)
@@ -109,6 +111,7 @@ export interface NewTask {
   priority?: Task['priority']
   assignee_id?: string | null
   due_date?: string | null
+  product_id?: string | null
 }
 
 export async function createTask(t: NewTask) {
@@ -117,7 +120,7 @@ export async function createTask(t: NewTask) {
 }
 
 export type TaskPatch = Partial<Pick<Task,
-  'title' | 'description' | 'status' | 'priority' | 'assignee_id' | 'due_date' | 'position' | 'archived_at'>>
+  'title' | 'description' | 'status' | 'priority' | 'assignee_id' | 'due_date' | 'position' | 'archived_at' | 'product_id'>>
 
 export async function updateTask(id: string, patch: TaskPatch) {
   const rows = check(await supabase.from('ws_tasks').update(patch).eq('id', id).select('id')) as { id: string }[]
@@ -226,7 +229,7 @@ export async function deleteComment(id: string) {
 const BUCKET = 'ws-files'
 export const MAX_FILE = 25 * 1024 * 1024
 
-export interface UploadTarget { taskId?: string; messageId?: string; componentId?: string; supplierId?: string }
+export interface UploadTarget { taskId?: string; messageId?: string; componentId?: string; supplierId?: string; productId?: string }
 
 const safeName = (n: string) => n.replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(-120)
 
@@ -239,7 +242,7 @@ export async function uploadFile(
   if (up.error) throw new Error(up.error.message)
   const ins = await supabase.from('ws_attachments').insert({
     task_id: target.taskId ?? null, message_id: target.messageId ?? null,
-    component_id: target.componentId ?? null, supplier_id: target.supplierId ?? null,
+    component_id: target.componentId ?? null, supplier_id: target.supplierId ?? null, product_id: target.productId ?? null,
     storage_path: path, filename: file.name, mime: file.type || null, size: file.size,
   }).select().single()
   if (ins.error) {
@@ -267,12 +270,13 @@ export function fileLabels(files: Pick<Attachment, 'id' | 'mime' | 'filename' | 
 }
 
 export async function fetchAttachments(opts: {
-  taskId?: string; componentId?: string; supplierId?: string; workspaceId?: string; messageIds?: string[]; page?: number; q?: string
+  taskId?: string; componentId?: string; supplierId?: string; productId?: string; workspaceId?: string; messageIds?: string[]; page?: number; q?: string
 }) {
   let q = supabase.from('ws_attachments').select('*').order('created_at', { ascending: false })
   if (opts.taskId) q = q.eq('task_id', opts.taskId)
   if (opts.componentId) q = q.eq('component_id', opts.componentId)
   if (opts.supplierId) q = q.eq('supplier_id', opts.supplierId)
+  if (opts.productId) q = q.eq('product_id', opts.productId)
   if (opts.workspaceId) q = q.eq('workspace_id', opts.workspaceId)
   if (opts.messageIds) q = q.in('message_id', opts.messageIds)
   if (opts.q?.trim()) q = q.ilike('filename', `%${escapeLike(opts.q.trim())}%`)
@@ -447,7 +451,8 @@ export interface SearchResult {
   tasks: { id: string; num: number; title: string; status: TaskStatus }[]
   members: { user_id: string; name: string; email: string; role: string }[]
   messages: { id: string; conversation_id: string; body: string; created_at: string }[]
-  files: { id: string; task_id: string | null; component_id: string | null; supplier_id: string | null; filename: string; size: number }[]
+  files: { id: string; task_id: string | null; component_id: string | null; supplier_id: string | null; product_id: string | null; filename: string; size: number }[]
+  products: { id: string; name: string; sku: string | null; version: string | null }[]
   components: { id: string; name: string; sku: string | null; manufacturer: string | null; stock: number; unit: string }[]
   suppliers: { id: string; name: string; contact: string | null }[]
 }

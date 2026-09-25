@@ -9,7 +9,7 @@ import { Avatar, PageHeader, QueryState } from '../ui'
 import { ActivityList } from '../shared'
 import { ClaimButton, DueLabel, PriorityChip, StatusChip } from '../taskParts'
 import { fetchComponents, needsReorder } from '../catalog'
-import { Stock, useRates } from '../catalogParts'
+import { Stock, useDicts, useProducts, useRates } from '../catalogParts'
 import { fmtMoney, toRub } from '../money'
 
 const TILES: { key: string; label: string; to: string; color: string }[] = [
@@ -70,6 +70,7 @@ export default function Home() {
         </div>
       </QueryState>
 
+      <ProductsStrip />
       <Inventory />
 
       {(blocked.length > 0 || overdue.length > 0) && (
@@ -210,5 +211,26 @@ function Inventory() {
               </li>))}</ul>}
       </section>
     </div>
+  )
+}
+
+/** Сколько изделий на каждом этапе: концепт, разработка, производство… */
+function ProductsStrip() {
+  const products = useProducts()
+  const statuses = useDicts('product_status')
+  const all = products.data ?? []
+  if (products.isLoading || products.error || all.length === 0) return null
+  const groups = (statuses.data ?? []).map(s => ({ s, n: all.filter(p => p.status_id === s.id).length })).filter(g => g.n > 0)
+  const none = all.filter(p => !p.status_id).length
+  return (
+    <section className="dash-card mb-5 flex flex-wrap items-center gap-x-5 gap-y-2 p-4" aria-label="Изделия">
+      <Link to="/products" className="mr-2"><span className="text-2xl font-semibold tabular-nums">{all.length}</span> <span className="dash-muted text-xs">изделий</span></Link>
+      {groups.map(({ s, n }) => (
+        <Link key={s.id} to={`/products?status=${s.id}`} className="inline-flex items-center gap-2 text-sm hover:underline" style={{ color: s.color }}>
+          <span className="dash-led" aria-hidden /><b className="tabular-nums">{n}</b> <span className="text-[var(--d-muted)]">{s.name}</span>
+        </Link>
+      ))}
+      {none > 0 && <Link to="/products?status=none" className="dash-muted text-sm hover:underline"><b className="tabular-nums">{none}</b> без статуса</Link>}
+    </section>
   )
 }

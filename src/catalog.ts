@@ -174,3 +174,59 @@ export const UNITS = ['шт', 'м', 'кг', 'г', 'л', 'компл', 'уп', '�
 /** Пора заказывать: остаток дошёл до минимума (минимум задан, компонент в ходу). */
 export const needsReorder = (c: Pick<Component, 'stock' | 'min_stock' | 'status'>) =>
   c.status !== 'obsolete' && c.min_stock > 0 && c.stock <= c.min_stock
+
+// ── изделия ─────────────────────────────────────────────────────────────────
+
+export interface Spec { name: string; value: string; unit?: string }
+
+export interface Product {
+  id: string
+  workspace_id: string
+  name: string
+  sku: string | null
+  version: string | null
+  status_id: string | null
+  description: string
+  specs: Spec[]
+  planned_price: number | null
+  actual_price: number | null
+  price_currency: Currency
+  notes: string
+  created_at: string
+  updated_at: string
+  archived_at: string | null
+}
+
+export type ProductInput = Pick<Product,
+  'name' | 'sku' | 'version' | 'status_id' | 'description' | 'specs' | 'planned_price' | 'actual_price' | 'price_currency' | 'notes'>
+
+const numOrNull = (v: number | string | null) => (v === null ? null : Number(v))
+const prod = (p: Product): Product => ({ ...p, planned_price: numOrNull(p.planned_price), actual_price: numOrNull(p.actual_price) })
+
+export async function fetchProducts(workspaceId: string, archived = false) {
+  let q = supabase.from('fl_products').select('*').eq('workspace_id', workspaceId).order('name')
+  q = archived ? q.not('archived_at', 'is', null) : q.is('archived_at', null)
+  return (check(await q) as Product[]).map(prod)
+}
+
+export async function fetchProduct(id: string) {
+  const p = check(await supabase.from('fl_products').select('*').eq('id', id).maybeSingle()) as Product | null
+  return p ? prod(p) : null
+}
+
+export async function createProduct(workspaceId: string, p: ProductInput) {
+  return prod(check(await supabase.from('fl_products').insert({ workspace_id: workspaceId, ...p }).select().single()) as Product)
+}
+
+export async function updateProduct(id: string, patch: Partial<ProductInput & { archived_at: string | null }>) {
+  one(check(await supabase.from('fl_products').update(patch).eq('id', id).select('id')), 'Изделие')
+}
+
+export async function deleteProduct(id: string) {
+  const atts = check(await supabase.from('ws_attachments').select('storage_path').eq('product_id', id)) as { storage_path: string }[]
+  one(check(await supabase.from('fl_products').delete().eq('id', id).select('id')), 'Изделие')
+  if (atts.length) await supabase.storage.from('ws-files').remove(atts.map(a => a.storage_path))
+}
+
+/** Цена продажи для расчётов: фактическая, если есть, иначе плановая. */
+export const sellingPrice = (p: Pick<Product, 'planned_price' | 'actual_price'>) => p.actual_price ?? p.planned_price

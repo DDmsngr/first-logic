@@ -4,8 +4,9 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, Check, MessageSquare, Paperclip } from 'lucide-react'
+import { Box, CalendarDays, Check, MessageSquare, Paperclip } from 'lucide-react'
 import { claimTask, createTask, releaseTask, updateTask, type TaskPatch } from './api'
+import { ProductSelect, useProducts } from './catalogParts'
 import { useWorkspace } from './auth'
 import { PRIORITIES, STATUSES, fmtDate, isOverdue, priorityMeta, statusMeta, todayIso } from './meta'
 import type { Priority, Task, TaskStatus } from './types'
@@ -168,6 +169,18 @@ export function ClaimButton({ task, compact }: { task: Pick<Task, 'id' | 'assign
   return null
 }
 
+/** Короткая метка изделия на карточке задачи. */
+export function ProductTag({ id }: { id: string | null }) {
+  const products = useProducts()
+  const p = id ? products.data?.find(x => x.id === id) : undefined
+  if (!p) return null
+  return (
+    <span className="dash-chip max-w-40 !border-[var(--d-line-strong)] !text-[var(--d-accent)]" title={`Изделие: ${p.name}`}>
+      <Box className="h-3 w-3 shrink-0" aria-hidden /><span className="truncate">{p.name}{p.version ? ` ${p.version}` : ''}</span>
+    </span>
+  )
+}
+
 export function TaskCardBody({ task }: { task: Task }) {
   const { byUser } = useWorkspace()
   const free = !task.assignee_id && task.status !== 'done'
@@ -181,6 +194,7 @@ export function TaskCardBody({ task }: { task: Task }) {
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <PriorityChip priority={task.priority} />
+        <ProductTag id={task.product_id} />
         <LabelChips ids={task.label_ids} />
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -229,8 +243,8 @@ export function useTaskUpdate() {
   })
 }
 
-export function CreateTaskModal({ open, onClose, initialStatus = 'todo' }: {
-  open: boolean; onClose: () => void; initialStatus?: TaskStatus
+export function CreateTaskModal({ open, onClose, initialStatus = 'todo', initialProductId = null }: {
+  open: boolean; onClose: () => void; initialStatus?: TaskStatus; initialProductId?: string | null
 }) {
   const { workspace, project, members } = useWorkspace()
   const qc = useQueryClient()
@@ -241,11 +255,12 @@ export function CreateTaskModal({ open, onClose, initialStatus = 'todo' }: {
   const [priority, setPriority] = useState<Priority>('medium')
   const [assignee, setAssignee] = useState('')
   const [due, setDue] = useState('')
+  const [productId, setProductId] = useState<string | null>(initialProductId)
 
   const create = useMutation({
     mutationFn: () => createTask({
       workspace_id: workspace.id, project_id: project.id, title: title.trim(), description,
-      status, priority, assignee_id: assignee || null, due_date: due || null,
+      status, priority, assignee_id: assignee || null, due_date: due || null, product_id: productId,
     }),
     onSuccess: t => {
       toast(`Задача «${t.title}» создана`)
@@ -288,6 +303,9 @@ export function CreateTaskModal({ open, onClose, initialStatus = 'todo' }: {
           <Field label="Срок">
             <DateInput min={todayIso()} value={due} onChange={setDue} />
           </Field>
+          <div className="col-span-2">
+            <Field label="Изделие"><ProductSelect value={productId} onChange={setProductId} /></Field>
+          </div>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className="dash-btn dash-btn-ghost" onClick={onClose}>Отмена</button>

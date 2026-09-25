@@ -34,6 +34,7 @@ export interface Task {
   priority: Priority
   assignee_id: string | null
   creator_id: string | null
+  product_id: string | null
   due_date: string | null
   position: number
   created_at: string
@@ -63,6 +64,7 @@ export interface Attachment {
   task_id: string | null
   message_id: string | null
   component_id: string | null
+  product_id: string | null
   supplier_id: string | null
   storage_path: string
   filename: string
@@ -125,6 +127,7 @@ export interface TaskFilters {
   priority?: Priority[]
   assignee?: string | 'none'
   label?: string
+  product?: string | 'none'
   due?: 'overdue' | 'week' | 'none'
   q?: string
   sort: 'newest' | 'oldest' | 'priority' | 'due' | 'updated'

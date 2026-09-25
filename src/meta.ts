@@ -108,6 +108,11 @@ export function describeActivity(e: ActivityEvent, byUser: (id: string | null) =
     case 'component.stock': return `${who} изменил(а) остаток «${m.title}»: ${fmtNum(m.from)} → ${fmtNum(m.to)} ${m.unit ?? ''}`.trimEnd()
     case 'component.archived': return `${who} убрал(а) в архив компонент «${m.title}»`
     case 'component.restored': return `${who} вернул(а) из архива компонент «${m.title}»`
+    case 'product.created': return `${who} добавил(а) изделие «${m.title}»`
+    case 'product.status': return `${who} изменил(а) статус изделия «${m.title}»: ${m.from ?? '—'} → ${m.to ?? '—'}`
+    case 'product.price': return `${who} изменил(а) цену изделия «${m.title}»: ${fmtNum(m.from)} → ${fmtNum(m.to)}`
+    case 'product.archived': return `${who} убрал(а) в архив изделие «${m.title}»`
+    case 'product.restored': return `${who} вернул(а) из архива изделие «${m.title}»`
     case 'supplier.created': return `${who} добавил(а) поставщика «${m.title}»`
     default: return `${who}: ${e.action}`
   }

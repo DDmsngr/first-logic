@@ -1,3 +1,4 @@
+import { ProductSelect } from '../catalogParts'
 import { useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -103,6 +104,9 @@ export default function TaskDetail() {
                   <option value="">Не назначен</option>
                   {assignable.map(m => <option key={m.id} value={m.user_id!}>{m.name}</option>)}
                 </select>
+              </Field>
+              <Field label="Изделие">
+                <ProductSelect disabled={!isAdmin} value={t.product_id} onChange={v => patch({ product_id: v })} />
               </Field>
               <Field label="Срок">
                 <DateInput disabled={!isAdmin} title={isAdmin ? undefined : ADMIN_ONLY_HINT} value={t.due_date ?? ''} onChange={v => patch({ due_date: v || null })} />
