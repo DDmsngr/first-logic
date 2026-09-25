@@ -101,22 +101,39 @@ export function Field({ label, children, hint }: { label: string; children: Reac
   )
 }
 
-/** Модалка на нативном <dialog>: фокус-ловушка, Esc и возврат фокуса даёт браузер. */
-export function Modal({ open, onClose, title, children }: {
+/**
+ * Модалка на нативном <dialog>: фокус-ловушка и возврат фокуса даёт браузер.
+ * Если в окне уже что-то введено, закрытие «случайным» способом (клик по фону,
+ * крестик, Esc) спрашивает подтверждение — иначе промах мышью стирает форму.
+ * Явные кнопки «Отмена» и «Готово» в самой форме закрывают без вопросов.
+ */
+export function Modal({ open, onClose, title, children, guard = true }: {
   open: boolean; onClose: () => void; title: string; children: ReactNode
+  /** false — не спрашивать (например, после успешного сохранения, когда терять нечего) */
+  guard?: boolean
 }) {
   const ref = useRef<HTMLDialogElement>(null)
+  const dirty = useRef(false)
   useEffect(() => {
     const d = ref.current
     if (!d) return
-    if (open && !d.open) d.showModal()
+    if (open && !d.open) { dirty.current = false; d.showModal() }
     if (!open && d.open) d.close()
   }, [open])
+
+  const tryClose = () => {
+    if (guard && dirty.current && !confirm('Закрыть окно? Введённые данные не сохранятся.')) return
+    onClose()
+  }
+
   return (
     <dialog
       ref={ref}
       onClose={onClose}
-      onClick={e => { if (e.target === ref.current) onClose() }}
+      onInput={() => { dirty.current = true }}
+      // Esc: если есть введённое — не даём окну закрыться само, сначала спрашиваем
+      onCancel={e => { if (guard && dirty.current) { e.preventDefault(); tryClose() } }}
+      onClick={e => { if (e.target === ref.current) tryClose() }}
       aria-labelledby="modal-title"
       className="m-auto max-h-[calc(100dvh-24px)] w-[min(520px,calc(100vw-24px))] overflow-y-auto rounded-2xl border border-[var(--d-line)] bg-[var(--d-surface)] p-0 text-[var(--d-text)] backdrop:bg-black/60"
     >
@@ -124,7 +141,7 @@ export function Modal({ open, onClose, title, children }: {
         <div className="p-5">
           <div className="mb-4 flex items-start justify-between gap-4">
             <h2 id="modal-title" className="text-lg font-semibold">{title}</h2>
-            <button className="dash-btn dash-btn-ghost dash-btn-sm" onClick={onClose} aria-label="Закрыть">
+            <button className="dash-btn dash-btn-ghost dash-btn-sm" onClick={tryClose} aria-label="Закрыть">
               <X className="h-4 w-4" aria-hidden />
             </button>
           </div>

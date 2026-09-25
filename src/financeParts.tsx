@@ -142,7 +142,7 @@ export function ExpenseModal({ open, expense, preset, onClose }: {
   })
 
   return (
-    <Modal open={open} onClose={close} title={created ? 'Расход добавлен' : expense ? 'Расход' : 'Новый расход'}>
+    <Modal open={open} onClose={close} guard={!created} title={created ? 'Расход добавлен' : expense ? 'Расход' : 'Новый расход'}>
       {open && !created && (
         <ExpenseForm key={expense?.id ?? 'new'} initial={expense ?? preset ?? {}} busy={save.isPending} submitLabel={expense ? 'Сохранить' : 'Добавить'}
           onSubmit={e => save.mutate(e)} onCancel={close}
