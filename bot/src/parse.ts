@@ -73,7 +73,8 @@ function retryAfterMs(text: string): number | null {
 /**
  * Пробует модели по порядку (GEMINI_MODEL — список через запятую). Лимит (429):
  * если ждать до 15 секунд — ждёт и повторяет ту же модель один раз, иначе идёт
- * к следующей. Модель не найдена (404) — тоже к следующей.
+ * к следующей. Сбой Google (5xx) — один повтор, затем следующая. Модель не
+ * найдена (404) — сразу к следующей.
  */
 export async function parseMessage(text: string, ctx: Ctx, today: string, apiKey: string, models: string) {
   const context = {
@@ -114,6 +115,12 @@ ${text.slice(0, 2000)}
         limited = true
         const wait = retryAfterMs(err)
         if (attempt === 0 && wait !== null && wait <= 15_000) { await sleep(wait + 300); continue }
+        break
+      }
+      if (r.status >= 500) {
+        limited = true // для пользователя это тоже «сервис перегружен, повторите»
+        // перегрузка или сбой на стороне Google: один быстрый повтор, потом следующая модель
+        if (attempt === 0) { await sleep(1200); continue }
         break
       }
       if (r.status === 404 || r.status === 400) break // нет такой модели / не подходит — следующая
