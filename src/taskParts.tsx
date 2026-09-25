@@ -4,11 +4,11 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Box, CalendarDays, Check, MessageSquare, Paperclip } from 'lucide-react'
-import { claimTask, createTask, releaseTask, updateTask, type TaskPatch } from './api'
+import { Box, CalendarDays, Check, MessageSquare, Paperclip, X } from 'lucide-react'
+import { claimTask, createTask, releaseTask, updateTask, uploadFile, type TaskPatch } from './api'
 import { ProductSelect, useProducts } from './catalogParts'
 import { useWorkspace } from './auth'
-import { PRIORITIES, STATUSES, fmtDate, isOverdue, priorityMeta, statusMeta, todayIso } from './meta'
+import { PRIORITIES, STATUSES, fmtDate, fmtSize, isOverdue, priorityMeta, statusMeta, todayIso } from './meta'
 import type { Priority, Task, TaskStatus } from './types'
 import { Avatar, DateInput, Field, Modal, errMsg, useToast } from './ui'
 
@@ -246,9 +246,11 @@ export function useTaskUpdate() {
 export function CreateTaskModal({ open, onClose, initialStatus = 'todo', initialProductId = null }: {
   open: boolean; onClose: () => void; initialStatus?: TaskStatus; initialProductId?: string | null
 }) {
-  const { workspace, project, members } = useWorkspace()
+  const { workspace, project, members, userId } = useWorkspace()
   const qc = useQueryClient()
   const toast = useToast()
+  const picker = useRef<HTMLInputElement>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<TaskStatus>(initialStatus)
@@ -258,14 +260,24 @@ export function CreateTaskModal({ open, onClose, initialStatus = 'todo', initial
   const [productId, setProductId] = useState<string | null>(initialProductId)
 
   const create = useMutation({
-    mutationFn: () => createTask({
-      workspace_id: workspace.id, project_id: project.id, title: title.trim(), description,
-      status, priority, assignee_id: assignee || null, due_date: due || null, product_id: productId,
-    }),
-    onSuccess: t => {
-      toast(`Задача «${t.title}» создана`)
-      setTitle(''); setDescription(''); setAssignee(''); setDue(''); setPriority('medium')
-      for (const k of ['tasks', 'stats', 'activity', 'notifications']) qc.invalidateQueries({ queryKey: [k] })
+    mutationFn: async () => {
+      const t = await createTask({
+        workspace_id: workspace.id, project_id: project.id, title: title.trim(), description,
+        status, priority, assignee_id: assignee || null, due_date: due || null, product_id: productId,
+      })
+      // задача уже есть: сбой файла не должен её отменять, поэтому копим ошибки отдельно
+      const failed: string[] = []
+      for (const f of files) {
+        try { await uploadFile(workspace.id, userId, f, { taskId: t.id }) }
+        catch (e) { failed.push(`${f.name}: ${errMsg(e)}`) }
+      }
+      return { t, failed }
+    },
+    onSuccess: ({ t, failed }) => {
+      if (failed.length) toast(`Задача «${t.title}» создана, но файлы не загрузились: ${failed.join('; ')}. Добавьте их в самой задаче.`, 'error')
+      else toast(files.length ? `Задача «${t.title}» создана, файлов: ${files.length}` : `Задача «${t.title}» создана`)
+      setTitle(''); setDescription(''); setAssignee(''); setDue(''); setPriority('medium'); setFiles([])
+      for (const k of ['tasks', 'stats', 'activity', 'notifications', 'attachments', 'task']) qc.invalidateQueries({ queryKey: [k] })
       onClose()
     },
     onError: e => toast(errMsg(e), 'error'),
@@ -307,10 +319,29 @@ export function CreateTaskModal({ open, onClose, initialStatus = 'todo', initial
             <Field label="Изделие"><ProductSelect value={productId} onChange={setProductId} /></Field>
           </div>
         </div>
+        <div>
+          <input ref={picker} type="file" multiple className="sr-only" tabIndex={-1} aria-label="Файлы к задаче" data-testid="create-task-files"
+            onChange={e => { const fs = Array.from(e.target.files ?? []); if (fs.length) setFiles(cur => [...cur, ...fs]); e.target.value = '' }} />
+          <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => picker.current?.click()}>
+            <Paperclip className="h-4 w-4" aria-hidden /> Прикрепить файлы
+          </button>
+          <span className="dash-muted ml-2 text-xs">любые, до 25 МБ каждый</span>
+          {files.length > 0 && (
+            <ul className="mt-2 text-sm" aria-label="Выбранные файлы">
+              {files.map((f, i) => (
+                <li key={`${f.name}-${i}`} className="dash-row flex items-center gap-2 py-1.5">
+                  <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                  <span className={`shrink-0 text-xs ${f.size > 25 * 1024 * 1024 ? 'text-[var(--d-danger)]' : 'dash-muted'}`}>{fmtSize(f.size)}{f.size > 25 * 1024 * 1024 && ' — слишком большой'}</span>
+                  <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm !px-2" aria-label={`Убрать ${f.name}`} onClick={() => setFiles(cur => cur.filter((_, j) => j !== i))}><X className="h-3.5 w-3.5" aria-hidden /></button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className="dash-btn dash-btn-ghost" onClick={onClose}>Отмена</button>
           <button className="dash-btn" disabled={create.isPending || !title.trim()}>
-            {create.isPending ? 'Создаём…' : 'Создать задачу'}
+            {create.isPending ? (files.length ? 'Создаём и загружаем…' : 'Создаём…') : 'Создать задачу'}
           </button>
         </div>
       </form>
