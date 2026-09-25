@@ -58,6 +58,8 @@ export interface TaskComment {
   deleted_at: string | null
 }
 
+export type DocType = 'drawing' | 'datasheet' | 'photo' | 'manual' | 'technical' | 'commercial' | 'receipt' | 'other'
+
 export interface Attachment {
   id: string
   workspace_id: string
@@ -68,6 +70,8 @@ export interface Attachment {
   assembly_id: string | null
   expense_id: string | null
   supplier_id: string | null
+  doc_type: DocType
+  description: string
   storage_path: string
   filename: string
   mime: string | null

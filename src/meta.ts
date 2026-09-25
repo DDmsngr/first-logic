@@ -1,4 +1,4 @@
-import type { ActivityEvent, Member, MemberStatus, Priority, Role, TaskStatus } from './types'
+import type { DocType, ActivityEvent, Member, MemberStatus, Priority, Role, TaskStatus } from './types'
 
 export const STATUSES: { id: TaskStatus; label: string; color: string }[] = [
   { id: 'backlog', label: 'Backlog', color: '#6b7785' },
@@ -125,3 +125,15 @@ export function describeActivity(e: ActivityEvent, byUser: (id: string | null) =
     default: return `${who}: ${e.action}`
   }
 }
+
+export const DOC_TYPES: { id: DocType; label: string }[] = [
+  { id: 'drawing', label: 'Чертёж / схема' },
+  { id: 'datasheet', label: 'Datasheet' },
+  { id: 'photo', label: 'Фото' },
+  { id: 'manual', label: 'Инструкция' },
+  { id: 'technical', label: 'Техдокумент' },
+  { id: 'commercial', label: 'Коммерческий' },
+  { id: 'receipt', label: 'Чек / счёт' },
+  { id: 'other', label: 'Прочее' },
+]
+export const docTypeLabel = (t: DocType) => DOC_TYPES.find(x => x.id === t)?.label ?? t

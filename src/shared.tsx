@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, ExternalLink, FileText, Trash2, Upload } from 'lucide-react'
 import {
-  PAGE, deleteAttachment, fetchActivity, fileLabels, isImage, signedUrl, uploadFile, type UploadTarget,
+  PAGE, deleteAttachment, fetchActivity, fileLabels, isImage, signedUrl, updateAttachment, uploadFile, type UploadTarget,
 } from './api'
 import { useWorkspace } from './auth'
-import { describeActivity, fmtDateTime, fmtSize, timeAgo } from './meta'
-import type { Attachment } from './types'
+import { DOC_TYPES, describeActivity, fmtDateTime, fmtSize, timeAgo } from './meta'
+import type { Attachment, DocType } from './types'
 import { Modal, QueryState, Spinner, errMsg, useToast } from './ui'
 
 // ── журнал активности ───────────────────────────────────────────────────────
@@ -50,8 +50,8 @@ export function ActivityList({ entityId, actorId, empty = 'Событий пок
 const REFRESH_KEYS = ['attachments', 'tasks', 'task', 'activity', 'notifications']
 
 /** Кнопка загрузки: можно выбрать сразу несколько файлов. */
-export function UploadButton({ target, label = 'Прикрепить файлы', onDone }: {
-  target: UploadTarget; label?: string; onDone?: () => void
+export function UploadButton({ target, label = 'Прикрепить файлы', onDone, docType, disabled }: {
+  target: UploadTarget; label?: string; onDone?: () => void; docType?: DocType; disabled?: boolean
 }) {
   const { workspace, userId } = useWorkspace()
   const qc = useQueryClient()
@@ -61,7 +61,7 @@ export function UploadButton({ target, label = 'Прикрепить файлы'
     mutationFn: async (files: File[]) => {
       const failed: string[] = []
       for (const f of files) {
-        try { await uploadFile(workspace.id, userId, f, target) }
+        try { await uploadFile(workspace.id, userId, f, target, docType) }
         catch (e) { failed.push(`${f.name}: ${errMsg(e)}`) }
       }
       if (failed.length) throw new Error(failed.join('; '))
@@ -75,7 +75,7 @@ export function UploadButton({ target, label = 'Прикрепить файлы'
     <>
       <input ref={input} type="file" multiple className="sr-only" tabIndex={-1} aria-label={label} data-testid="file-input"
         onChange={e => { const fs = Array.from(e.target.files ?? []); if (fs.length) up.mutate(fs); e.target.value = '' }} />
-      <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" disabled={up.isPending} onClick={() => input.current?.click()}>
+      <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" disabled={up.isPending || disabled} onClick={() => input.current?.click()}>
         {up.isPending ? <Spinner label="Загружаем" /> : <><Upload className="h-4 w-4" aria-hidden /> {label}</>}
       </button>
     </>
@@ -118,8 +118,10 @@ export function ImagePreview({ file, onClose }: { file: Attachment | null; onClo
 
 // ── список файлов ───────────────────────────────────────────────────────────
 
-export function FileList({ files, showTask, labelsFrom }: {
+export function FileList({ files, showTask, labelsFrom, linkOf }: {
   files: Attachment[]; showTask?: boolean
+  /** своя подпись привязки (страница документов) */
+  linkOf?: (a: Attachment) => React.ReactNode
   /** по каким файлам считать подписи скрин-N (по умолчанию — по самому списку) */
   labelsFrom?: Attachment[]
 }) {
@@ -138,6 +140,11 @@ export function FileList({ files, showTask, labelsFrom }: {
     } catch (e) { toast(errMsg(e), 'error') }
     setBusy(null)
   }
+  const setType = useMutation({
+    mutationFn: ({ id, doc_type }: { id: string; doc_type: DocType }) => updateAttachment(id, { doc_type }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['attachments'] }),
+    onError: e => toast(errMsg(e), 'error'),
+  })
   const del = useMutation({
     mutationFn: deleteAttachment,
     onSuccess: () => { toast('Файл удалён'); qc.invalidateQueries({ queryKey: ['attachments'] }); qc.invalidateQueries({ queryKey: ['tasks'] }) },
@@ -157,8 +164,10 @@ export function FileList({ files, showTask, labelsFrom }: {
                 <Link to={`/files/${a.id}`} className="hover:underline">{a.filename}</Link>
                 {labels.get(a.id) && a.task_id && <span className="dash-chip ml-2 !py-0 align-middle">{labels.get(a.id)}</span>}
               </div>
+              {a.description && <div className="text-xs">{a.description}</div>}
               <div className="dash-muted text-xs">
                 {fmtSize(a.size)} · {byUser(a.uploader_id)?.name ?? '—'} · {fmtDateTime(a.created_at)}
+                {linkOf && linkOf(a) && <> · {linkOf(a)}</>}
                 {showTask && a.task_id && <> · <Link className="underline" to={`/tasks/${a.task_id}`}>задача</Link></>}
                 {showTask && a.component_id && <> · <Link className="underline" to={`/components/${a.component_id}`}>компонент</Link></>}
                 {showTask && a.product_id && <> · <Link className="underline" to={`/products/${a.product_id}`}>изделие</Link></>}
@@ -166,7 +175,11 @@ export function FileList({ files, showTask, labelsFrom }: {
                 {showTask && a.supplier_id && <> · <Link className="underline" to={`/suppliers/${a.supplier_id}`}>поставщик</Link></>}
               </div>
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <select className="dash-input !min-h-8 !w-auto !py-0 !pl-2 !pr-7 text-xs" aria-label={`Вид документа «${a.filename}»`}
+                value={a.doc_type} onChange={e => setType.mutate({ id: a.id, doc_type: e.target.value as DocType })}>
+                {DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
               <button className="dash-btn dash-btn-ghost dash-btn-sm" disabled={busy === a.id} onClick={() => open(a, false)} aria-label={`Открыть ${a.filename}`}>
                 <ExternalLink className="h-4 w-4" aria-hidden />
               </button>

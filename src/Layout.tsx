@@ -42,7 +42,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'Справочники',
     items: [
-      { to: '/files', label: 'Файлы', icon: FolderOpen },
+      { to: '/files', label: 'Документы', icon: FolderOpen },
       { to: '/team', label: 'Команда', icon: Users },
     ],
   },

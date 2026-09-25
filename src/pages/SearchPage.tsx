@@ -47,7 +47,7 @@ export default function SearchPage() {
           <Group title="Сообщения" n={d?.messages.length ?? 0}>
             {d?.messages.map(m => <li key={m.id} className="dash-row py-2"><Link className="text-sm hover:underline" to={`/messages/${m.conversation_id}`}>{m.body.slice(0, 120)}</Link></li>)}
           </Group>
-          <Group title="Файлы" n={d?.files.length ?? 0}>
+          <Group title="Документы" n={d?.files.length ?? 0}>
             {d?.files.map(f => <li key={f.id} className="dash-row py-2"><Link className="text-sm hover:underline" to={f.task_id ? `/tasks/${f.task_id}` : f.component_id ? `/components/${f.component_id}` : f.supplier_id ? `/suppliers/${f.supplier_id}` : f.product_id ? `/products/${f.product_id}` : f.assembly_id ? `/assemblies/${f.assembly_id}` : '/files'}>{f.filename}</Link> <span className="dash-muted text-xs">{fmtSize(f.size)}</span></li>)}
           </Group>
         </QueryState>

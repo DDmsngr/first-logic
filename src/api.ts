@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 import type {
-  ActivityEvent, Attachment, Conversation, Invitation, Label, Member, Message,
+  ActivityEvent, Attachment, DocType, Conversation, Invitation, Label, Member, Message,
   Notification, Project, Task, TaskComment, TaskFilters, TaskStatus, Workspace,
 } from './types'
 import { PRIORITIES, plusDaysIso, todayIso } from './meta'
@@ -234,7 +234,7 @@ export interface UploadTarget { taskId?: string; messageId?: string; componentId
 const safeName = (n: string) => n.replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(-120)
 
 export async function uploadFile(
-  workspaceId: string, userId: string, file: File, target: UploadTarget,
+  workspaceId: string, userId: string, file: File, target: UploadTarget, docType?: DocType,
 ) {
   if (file.size > MAX_FILE) throw new Error('Файл больше 25 МБ')
   const path = `${workspaceId}/${userId}/${crypto.randomUUID()}-${safeName(file.name)}`
@@ -244,6 +244,7 @@ export async function uploadFile(
     task_id: target.taskId ?? null, message_id: target.messageId ?? null,
     component_id: target.componentId ?? null, supplier_id: target.supplierId ?? null, product_id: target.productId ?? null, assembly_id: target.assemblyId ?? null, expense_id: target.expenseId ?? null,
     storage_path: path, filename: file.name, mime: file.type || null, size: file.size,
+    ...(docType ? { doc_type: docType } : {}),
   }).select().single()
   if (ins.error) {
     await supabase.storage.from(BUCKET).remove([path]) // не оставляем сироту без записи
@@ -269,8 +270,30 @@ export function fileLabels(files: Pick<Attachment, 'id' | 'mime' | 'filename' | 
   return out
 }
 
+export type AttachmentKind = 'task' | 'message' | 'product' | 'assembly' | 'component' | 'supplier' | 'expense'
+
+export const KIND_COLUMN: Record<AttachmentKind, keyof Attachment> = {
+  task: 'task_id', message: 'message_id', product: 'product_id', assembly: 'assembly_id',
+  component: 'component_id', supplier: 'supplier_id', expense: 'expense_id',
+}
+
+/** К чему привязан файл. */
+export function attachmentKind(a: Attachment): { kind: AttachmentKind; id: string } | null {
+  for (const k of Object.keys(KIND_COLUMN) as AttachmentKind[]) {
+    const v = a[KIND_COLUMN[k]]
+    if (typeof v === 'string' && v) return { kind: k, id: v }
+  }
+  return null
+}
+
+export async function updateAttachment(id: string, patch: Partial<Pick<Attachment, 'doc_type' | 'description'>>) {
+  const rows = check(await supabase.from('ws_attachments').update(patch).eq('id', id).select('id')) as unknown[]
+  if (!rows.length) throw new Error('Файл не найден или нет доступа')
+}
+
 export async function fetchAttachments(opts: {
   taskId?: string; componentId?: string; supplierId?: string; productId?: string; assemblyId?: string; expenseId?: string; workspaceId?: string; messageIds?: string[]; page?: number; q?: string
+  docType?: DocType; kind?: AttachmentKind
 }) {
   let q = supabase.from('ws_attachments').select('*').order('created_at', { ascending: false })
   if (opts.taskId) q = q.eq('task_id', opts.taskId)
@@ -279,6 +302,8 @@ export async function fetchAttachments(opts: {
   if (opts.productId) q = q.eq('product_id', opts.productId)
   if (opts.assemblyId) q = q.eq('assembly_id', opts.assemblyId)
   if (opts.expenseId) q = q.eq('expense_id', opts.expenseId)
+  if (opts.docType) q = q.eq('doc_type', opts.docType)
+  if (opts.kind) q = q.not(KIND_COLUMN[opts.kind], 'is', null)
   if (opts.workspaceId) q = q.eq('workspace_id', opts.workspaceId)
   if (opts.messageIds) q = q.in('message_id', opts.messageIds)
   if (opts.q?.trim()) q = q.ilike('filename', `%${escapeLike(opts.q.trim())}%`)
