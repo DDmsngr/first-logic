@@ -1,3 +1,4 @@
+import { storageName } from './fileName'
 import { supabase } from './supabase'
 import type {
   ActivityEvent, Attachment, DocType, Conversation, Invitation, Label, Member, Message,
@@ -231,7 +232,7 @@ export const MAX_FILE = 25 * 1024 * 1024
 
 export interface UploadTarget { taskId?: string; messageId?: string; componentId?: string; supplierId?: string; productId?: string; assemblyId?: string; expenseId?: string }
 
-const safeName = (n: string) => n.replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(-120)
+const safeName = (n: string) => storageName(n)
 
 export async function uploadFile(
   workspaceId: string, userId: string, file: File, target: UploadTarget, docType?: DocType,

@@ -1,4 +1,5 @@
 // Доступ к базе dashboard: те же таблицы, service_role, только через функции fl_bot_*.
+import { storageName } from './filename'
 import type { Intent } from './intents'
 
 export interface Ctx {
@@ -59,8 +60,7 @@ export class Db {
 
   /** Кладёт файл в бакет ws-files и записывает его в задачу или изделие. */
   async attach(c: Ctx, target: { task?: string; product?: string }, file: { name: string; mime: string | null }, bytes: ArrayBuffer) {
-    const safe = file.name.replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(-120) || 'file'
-    const path = `${c.member.workspace_id}/${c.member.user_id}/${crypto.randomUUID()}-${safe}`
+    const path = `${c.member.workspace_id}/${c.member.user_id}/${crypto.randomUUID()}-${storageName(file.name)}`
     const up = await fetch(`${this.url}/storage/v1/object/ws-files/${path.split('/').map(encodeURIComponent).join('/')}`, {
       method: 'POST',
       headers: { apikey: this.key, Authorization: `Bearer ${this.key}`, 'Content-Type': file.mime ?? 'application/octet-stream' },
