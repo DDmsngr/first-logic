@@ -55,3 +55,11 @@ test('мусорные даты и статусы не проходят', () => 
   assert.equal(intent.due_date, undefined)
   assert.ok(missing.includes('что изменить'))
 })
+
+test('сборка: изделие и количество из справочника, всегда через подтверждение', () => {
+  const { intent, missing } = normalize({ intent: 'build', confidence: 0.95, product_id: 'p100', qty: 3 }, ctx)
+  assert.deepEqual(missing, [])
+  assert.equal(needsConfirm(intent), true)
+  assert.match(describe(intent, ctx, esc).join('\n'), /Собрали «Усилитель 100W УКВ» v2\.1 × 3/)
+  assert.ok(normalize({ intent: 'build', confidence: 0.9, qty: 3 }, ctx).missing.includes('изделие из справочника'))
+})

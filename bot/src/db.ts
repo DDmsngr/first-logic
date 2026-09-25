@@ -12,6 +12,16 @@ export interface Ctx {
   my_tasks: { num: number; title: string; status: string; due_date: string | null }[]
 }
 
+export interface Digest {
+  name: string
+  due_today: { num: number; title: string }[]
+  overdue: { num: number; title: string; due_date: string }[]
+  in_progress: number
+  free: number
+  low: { name: string; stock: number; min: number; unit: string }[]
+  orders_due: { num: number; supplier: string | null; expected_on: string }[]
+}
+
 export class Db {
   constructor(private url: string, private key: string) {}
 
@@ -37,7 +47,13 @@ export class Db {
   redeem(code: string, tgUser: number, chat: number, username: string | null) {
     return this.rpc<{ name: string }>('fl_bot_redeem', { p_code: code, p_tg_user: tgUser, p_chat: chat, p_username: username })
   }
-  apply(memberId: string, intent: Intent) { return this.rpc<{ id: string; num?: number; link: string }>('fl_bot_apply', { p_member: memberId, p_intent: intent }) }
+  async apply(memberId: string, intent: Intent) {
+    if (intent.intent === 'build') {
+      await this.rpc('fl_bot_build', { p_member: memberId, p_product: intent.product_id, p_qty: intent.qty })
+      return { id: intent.product_id!, link: `/products/${intent.product_id}` }
+    }
+    return this.rpc<{ id: string; num?: number; link: string }>('fl_bot_apply', { p_member: memberId, p_intent: intent })
+  }
 
   async savePending(p: { member_id: string; chat_id: number; source_text: string; intent: Intent }) {
     const rows = await this.req('fl_tg_pending', { method: 'POST', body: JSON.stringify(p) }) as { id: string }[]
@@ -61,4 +77,6 @@ export class Db {
   outboxBatch() { return this.rpc<{ id: number; chat_id: number; text: string; link: string | null }[]>('fl_bot_outbox_batch', { p_limit: 30 }) }
   outboxDone(id: number, error: string | null) { return this.rpc('fl_bot_outbox_done', { p_id: id, p_error: error }) }
   syncOverdue() { return this.rpc('fl_bot_sync_overdue') }
+  digestTargets() { return this.rpc<{ member_id: string; chat_id: number }[]>('fl_bot_digest_targets') }
+  digest(memberId: string) { return this.rpc<Digest | null>('fl_bot_digest', { p_member: memberId }) }
 }
