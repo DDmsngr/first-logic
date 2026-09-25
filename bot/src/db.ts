@@ -55,6 +55,9 @@ export class Db {
       await this.rpc('fl_bot_build', { p_member: memberId, p_product: intent.product_id, p_qty: intent.qty })
       return { id: intent.product_id!, link: `/products/${intent.product_id}` }
     }
+    if (['claim_task', 'release_task', 'add_comment'].includes(intent.intent)) {
+      return this.rpc<{ id: string; num?: number; link: string }>('fl_bot_task_action', { p_member: memberId, p_intent: intent })
+    }
     return this.rpc<{ id: string; num?: number; link: string }>('fl_bot_apply', { p_member: memberId, p_intent: intent })
   }
 

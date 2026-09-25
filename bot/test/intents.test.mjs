@@ -85,3 +85,14 @@ test('исполнитель и срок достраиваются из тек�
   assert.equal(fillFromText({ ...task, due_date: '2026-10-01' }, 'до завтра', ctx, '2026-09-26').due_date, '2026-10-01')
   assert.equal(fillFromText({ intent: 'build' }, 'завтра на меня', ctx, '2026-09-26').due_date, undefined)
 })
+
+test('взять задачу и комментарий: нужен номер, комментарию ещё и текст', () => {
+  const n = raw => normalize(raw, ctx)
+  assert.deepEqual(n({ intent: 'claim_task', task_num: 5, confidence: 0.9 }).missing, [])
+  assert.deepEqual(n({ intent: 'claim_task', confidence: 0.9 }).missing, ['номер задачи'])
+  assert.deepEqual(n({ intent: 'add_comment', task_num: 5, text: 'проверил', confidence: 0.9 }).missing, [])
+  assert.deepEqual(n({ intent: 'add_comment', task_num: 5, confidence: 0.9 }).missing, ['текст комментария'])
+  const i = n({ intent: 'add_comment', task_num: 5, text: 'проверил КСВ', confidence: 0.9 }).intent
+  assert.equal(needsConfirm(i), false)
+  assert.deepEqual(describe(i, ctx, s => s), ['Комментарий к задаче #5:', 'проверил КСВ'])
+})

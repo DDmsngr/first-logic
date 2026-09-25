@@ -5,7 +5,7 @@ import type { Ctx } from './db'
 
 export const INTENTS = [
   'create_task', 'update_task', 'create_expense', 'stock_in', 'stock_out', 'create_component',
-  'create_product', 'create_assembly', 'add_note', 'build', 'query', 'unknown',
+  'create_product', 'create_assembly', 'add_note', 'build', 'claim_task', 'release_task', 'add_comment', 'query', 'unknown',
 ] as const
 export type IntentKind = (typeof INTENTS)[number]
 
@@ -73,6 +73,8 @@ export function normalize(raw: Record<string, unknown>, ctx: Ctx): { intent: Int
     case 'create_product': case 'create_assembly': need(i.name, 'название'); break
     case 'add_note': need(i.product_id, 'изделие'); need(i.text, 'текст заметки'); break
     case 'build': need(i.product_id, 'изделие из справочника'); need(i.qty && i.qty > 0, 'сколько собрали'); break
+    case 'claim_task': case 'release_task': need(i.task_num, 'номер задачи'); break
+    case 'add_comment': need(i.task_num, 'номер задачи'); need(i.text, 'текст комментария'); break
   }
   if (i.amount !== undefined && !i.currency) i.currency = 'RUB'
   if (i.price !== undefined && !i.currency) i.currency = 'RUB'
@@ -136,6 +138,9 @@ export function describe(i: Intent, ctx: Ctx, esc: (s: string) => string): strin
     case 'create_product': out.push(`Новое изделие ${q(i.name!)}${i.version ? ` ${esc(i.version)}` : ''}`); break
     case 'create_assembly': out.push(`Новый узел ${q(i.name!)}`); break
     case 'add_note': out.push(`Заметка в изделие ${q(product!.name)}:`, esc(i.text!)); break
+    case 'claim_task': out.push(`Беру на себя задачу #${i.task_num}`); break
+    case 'release_task': out.push(`Отказываюсь от задачи #${i.task_num}`, 'Она снова станет свободной'); break
+    case 'add_comment': out.push(`Комментарий к задаче #${i.task_num}:`, esc(i.text!)); break
     case 'build': out.push(`Собрали ${q(product!.name)}${product!.version ? ` ${esc(product!.version)}` : ''} × ${i.qty}`, 'Компоненты по составу спишутся со склада'); break
   }
   if (product && i.intent !== 'add_note' && i.intent !== 'build') out.push(`Изделие: ${esc(product.name)}${product.version ? ` ${esc(product.version)}` : ''}`)
@@ -147,14 +152,14 @@ export const DONE_TITLE: Partial<Record<IntentKind, string>> = {
   create_task: '✅ Создал задачу', update_task: '✅ Обновил задачу', create_expense: '✅ Записал расход',
   stock_in: '✅ Оприходовал', stock_out: '✅ Списал со склада', create_component: '✅ Добавил компонент',
   create_product: '✅ Добавил изделие', create_assembly: '✅ Добавил узел', add_note: '✅ Добавил заметку',
-  build: '✅ Списал со склада',
+  build: '✅ Списал со склада', claim_task: '✅ Задача ваша', release_task: '✅ Отказались от задачи', add_comment: '✅ Комментарий добавлен',
 }
 
 export const ASK_TITLE: Partial<Record<IntentKind, string>> = {
   create_task: 'Создать задачу?', update_task: 'Обновить задачу?', create_expense: 'Записать расход?',
   stock_in: 'Оприходовать?', stock_out: 'Списать со склада?', create_component: 'Добавить компонент?',
   create_product: 'Добавить изделие?', create_assembly: 'Добавить узел?', add_note: 'Добавить заметку?',
-  build: 'Списать по сборке?',
+  build: 'Списать по сборке?', claim_task: 'Взять задачу?', release_task: 'Отказаться от задачи?', add_comment: 'Добавить комментарий?',
 }
 
 const addDays = (iso: string, n: number) => {
