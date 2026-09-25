@@ -39,7 +39,8 @@ export default function MemberProfile() {
         <Avatar member={m} size={56} />
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold">{m.name}</h1>
-          <p className="dash-muted text-sm">{m.email}</p>
+          {m.position && <p className="text-sm">{m.position}</p>}
+          <p className="dash-muted text-sm">{m.email}{m.phone ? ` · ${m.phone}` : ''}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <span className="dash-chip">{ROLE_LABEL[m.role]}</span>
             <span className="dash-chip">{MEMBER_STATUS_LABEL[m.status]}</span>

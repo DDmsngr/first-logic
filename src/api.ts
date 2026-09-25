@@ -374,6 +374,47 @@ export async function updateMember(id: string, patch: Partial<Pick<Member, 'role
   if (!rows.length) throw new Error('Нет прав на изменение участника')
 }
 
+export type ProfilePatch = Partial<Pick<Member, 'name' | 'position' | 'phone' | 'avatar_url'>>
+
+export async function updateMyProfile(memberId: string, patch: ProfilePatch) {
+  const rows = check(await supabase.from('ws_members').update(patch).eq('id', memberId).select('id')) as unknown[]
+  if (!rows.length) throw new Error('Не удалось сохранить профиль')
+}
+
+const AVATARS = 'avatars'
+const AVATAR_SIZE = 256
+
+/** Обрезает до квадрата по центру и сжимает до 256 px: лимит бакета 512 КБ. */
+async function squareJpeg(file: File): Promise<Blob> {
+  const bmp = await createImageBitmap(file).catch(() => { throw new Error('Не удалось прочитать изображение') })
+  const side = Math.min(bmp.width, bmp.height)
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = AVATAR_SIZE
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, AVATAR_SIZE, AVATAR_SIZE)
+  bmp.close()
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(b => (b ? resolve(b) : reject(new Error('Не удалось сжать изображение'))), 'image/jpeg', 0.86))
+}
+
+const avatarPath = (url: string | null) => url?.split(`/${AVATARS}/`)[1]?.split('?')[0]
+
+/** Загружает новое фото и возвращает его публичный адрес; предыдущее удаляет. */
+export async function uploadAvatar(userId: string, file: File, previousUrl: string | null) {
+  const blob = await squareJpeg(file)
+  const path = `${userId}/${Date.now()}.jpg`
+  const up = await supabase.storage.from(AVATARS).upload(path, blob, { contentType: 'image/jpeg' })
+  if (up.error) throw new Error(up.error.message)
+  const old = avatarPath(previousUrl)
+  if (old) await supabase.storage.from(AVATARS).remove([old])
+  return supabase.storage.from(AVATARS).getPublicUrl(path).data.publicUrl
+}
+
+export async function removeAvatarFile(url: string | null) {
+  const old = avatarPath(url)
+  if (old) await supabase.storage.from(AVATARS).remove([old])
+}
+
 export async function deleteInvitedMember(id: string) {
   const rows = check(await supabase.from('ws_members').delete().eq('id', id).select('id')) as unknown[]
   if (!rows.length) throw new Error('Отозвать можно только непринятое приглашение')

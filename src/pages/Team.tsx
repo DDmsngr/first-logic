@@ -61,6 +61,7 @@ export default function Team() {
                       {m.user_id
                         ? <Link to={`/team/${m.user_id}`} className="block truncate font-medium hover:underline">{m.name}</Link>
                         : <span className="block truncate font-medium">{m.name}</span>}
+                      {m.position && <div className="truncate text-xs">{m.position}</div>}
                       <div className="dash-muted truncate text-xs">{m.email}</div>
                     </div>
                   </div>
@@ -77,7 +78,7 @@ export default function Team() {
                   )}
                   {isAdmin && m.user_id !== me.user_id && m.role !== 'owner' && (
                     <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--d-line)] pt-3">
-                      {m.status === 'active' && isOwner && (
+                      {(m.status === 'active' || m.status === 'invited') && isOwner && (
                         <select className="dash-input !min-h-8 !w-auto text-xs" aria-label={`Роль ${m.name}`} value={m.role}
                           onChange={e => mutate.mutate(() => updateMember(m.id, { role: e.target.value as Role }))}>
                           <option value="member">Member</option><option value="admin">Admin</option>

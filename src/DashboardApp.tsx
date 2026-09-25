@@ -16,6 +16,7 @@ import FilePage from './pages/FilePage'
 import Messages from './pages/Messages'
 import SearchPage from './pages/SearchPage'
 import Notifications from './pages/Notifications'
+import Settings from './pages/Settings'
 
 // Realtime мгновенно инвалидирует кеш, а опрос раз в 20 с — страховка на случай
 // оборванного websocket (корпоративный прокси, спящая вкладка). Вкладка в фоне не опрашивается.
@@ -72,6 +73,7 @@ export default function DashboardApp() {
                 <Route path="messages/:convId" element={<Messages />} />
                 <Route path="search" element={<SearchPage />} />
                 <Route path="notifications" element={<Notifications />} />
+                <Route path="settings" element={<Settings />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

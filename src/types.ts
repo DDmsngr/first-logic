@@ -13,6 +13,8 @@ export interface Member {
   email: string
   name: string
   avatar_url: string | null
+  position: string | null
+  phone: string | null
   role: Role
   status: MemberStatus
   joined_at: string | null

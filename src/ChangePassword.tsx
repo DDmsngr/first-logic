@@ -3,7 +3,7 @@ import { KeyRound } from 'lucide-react'
 import { supabase } from './supabase'
 import { Field, Modal, useToast } from './ui'
 
-export default function ChangePassword() {
+export default function ChangePassword({ label }: { label?: string }) {
   const [open, setOpen] = useState(false)
   const [pw, setPw] = useState('')
   const [busy, setBusy] = useState(false)
@@ -25,7 +25,7 @@ export default function ChangePassword() {
   return (
     <>
       <button className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => setOpen(true)} aria-label="Сменить пароль" title="Сменить пароль">
-        <KeyRound className="h-4 w-4" aria-hidden />
+        <KeyRound className="h-4 w-4" aria-hidden />{label}
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title="Смена пароля">
         <form onSubmit={submit} className="space-y-3">

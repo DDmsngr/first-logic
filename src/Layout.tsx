@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Bell, FolderOpen, LayoutDashboard, ListChecks, LogOut, Menu, MessageSquare, Search, Users, type LucideIcon,
+  Bell, FolderOpen, LayoutDashboard, ListChecks, LogOut, Menu, MessageSquare, Search, Settings, Users, type LucideIcon,
 } from 'lucide-react'
 import { signOut, useWorkspace } from './auth'
 import { fetchNotifications, fetchUnread } from './api'
@@ -26,6 +26,12 @@ const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: '/files', label: 'Файлы', icon: FolderOpen },
       { to: '/team', label: 'Команда', icon: Users },
+    ],
+  },
+  {
+    group: 'Система',
+    items: [
+      { to: '/settings', label: 'Настройки', icon: Settings },
     ],
   },
 ]
@@ -61,7 +67,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh">
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-[var(--d-line)] bg-[var(--d-surface)]/85 backdrop-blur md:flex">
         <div className="border-b border-[var(--d-line)] px-4 py-4">
-          <Brand sub="Engineering · Production" />
+          <Brand sub="Engineering" />
         </div>
         <nav aria-label="Основная навигация" className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-4">
           {NAV.map(g => (
@@ -90,11 +96,13 @@ export default function Layout({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="flex items-center gap-2 border-t border-[var(--d-line)] p-3">
-          <Avatar member={me} size={30} />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">{me.name}</div>
-            <div className="dash-muted truncate text-xs">{me.email}</div>
-          </div>
+          <NavLink to="/settings" className="flex min-w-0 flex-1 items-center gap-2 rounded-md hover:opacity-80" title="Настройки профиля">
+            <Avatar member={me} size={30} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium">{me.name}</div>
+              <div className="dash-muted truncate text-xs">{me.position || me.email}</div>
+            </div>
+          </NavLink>
           <ChangePassword />
           <button className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => void signOut()} aria-label="Выйти" title="Выйти">
             <LogOut className="h-4 w-4" aria-hidden />
