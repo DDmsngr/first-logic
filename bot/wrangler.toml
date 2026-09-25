@@ -9,6 +9,7 @@ crons = ["* * * * *"]
 [vars]
 SUPABASE_URL = "https://lfmjeycdxhsiamifnbvv.supabase.co"
 DASHBOARD_URL = "https://ddmsngr.github.io/first-logic"
+BOT_USERNAME = "first_logic_bot"
 # список через запятую: при лимите или отсутствии модели берётся следующая
 GEMINI_MODEL = "gemini-3.6-flash,gemini-2.5-flash,gemini-2.5-flash-lite"
 

@@ -7,6 +7,7 @@ export interface TgMessage {
   from?: TgUser
   text?: string
   caption?: string
+  reply_to_message?: TgMessage
 }
 export interface TgCallback { id: string; from: TgUser; data?: string; message?: TgMessage }
 export interface TgUpdate { update_id: number; message?: TgMessage; edited_message?: TgMessage; callback_query?: TgCallback }

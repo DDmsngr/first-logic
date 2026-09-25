@@ -5,6 +5,7 @@
 import { Db, type Ctx } from './db'
 import { ASK_TITLE, DONE_TITLE, describe, needsConfirm, normalize, type Intent } from './intents'
 import { LimitError, parseMessage } from './parse'
+import { isGroupChat, routeText } from './route'
 import { Tg, esc, type TgCallback, type TgMessage, type TgUpdate } from './tg'
 
 export interface Env {
@@ -15,6 +16,7 @@ export interface Env {
   SUPABASE_SERVICE_KEY: string
   WEBHOOK_SECRET: string
   DASHBOARD_URL: string
+  BOT_USERNAME: string
 }
 
 const HELP = `Я — вход в dashboard First Logic. Пишите обычным текстом:
@@ -26,7 +28,9 @@ const HELP = `Я — вход в dashboard First Logic. Пишите обычн�
 • <i>Добавь 5 шт BLF188XR по 3200</i> — приход на склад (спрошу подтверждение)
 • <i>Сколько осталось SMA?</i> — вопрос по данным
 
-Команды: /tasks — мои задачи, /low — что пора заказать, /me — чей аккаунт.`
+Команды: /tasks — мои задачи, /low — что пора заказать, /me — чей аккаунт.
+
+В группе начинайте сообщение с @first_logic_bot или отвечайте на мои сообщения — иначе я молчу.`
 
 const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Moscow' })
 
@@ -67,11 +71,16 @@ async function onMessage(msg: TgMessage, env: Env) {
   const tg = new Tg(env.BOT_TOKEN)
   const db = new Db(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY)
   const chat = msg.chat.id
-  const text = (msg.text ?? msg.caption ?? '').trim()
+  const inGroup = isGroupChat(msg.chat.type)
+  const text = routeText(msg.chat.type, msg.text ?? msg.caption ?? '', {
+    username: env.BOT_USERNAME, botId: Number(env.BOT_TOKEN.split(':')[0]), replyToId: msg.reply_to_message?.from?.id,
+  })
   if (!msg.from || !text) return
-  if (msg.chat.type !== 'private') return // работаем только в личке: там понятно, кто пишет
+  // в группе отвечаем на конкретное сообщение, чтобы было видно, кому
+  const reply = inGroup ? { replyTo: msg.message_id } : {}
 
   if (text.startsWith('/start')) {
+    if (inGroup) return tg.send(chat, `Привязка — только в личных сообщениях: откройте @${env.BOT_USERNAME} и нажмите Start.`, reply)
     const code = text.split(/\s+/)[1]
     if (code) {
       try {
@@ -85,13 +94,13 @@ async function onMessage(msg: TgMessage, env: Env) {
 
   const c = await db.context(msg.from.id)
   if (!c) {
-    return tg.send(chat, `Этот Telegram ещё не привязан к dashboard.\n\nОткройте ${link(env, '/settings', 'Настройки')} → «Telegram» → «Привязать» и перейдите по ссылке.`)
+    return tg.send(chat, `Этот Telegram ещё не привязан к dashboard.\n\nОткройте ${link(env, '/settings', 'Настройки')} → «Telegram» → «Привязать» и перейдите по ссылке.`, reply)
   }
 
-  if (text === '/help' || text.startsWith('/start')) return tg.send(chat, HELP)
-  if (text === '/me') return tg.send(chat, `Вы — <b>${esc(c.member.name)}</b>. ${link(env, '/settings', 'Настройки уведомлений')}`)
-  if (text === '/tasks') return tg.send(chat, tasksText(c, env))
-  if (text === '/low') return tg.send(chat, lowText(c, env))
+  if (text === '/help' || text.startsWith('/start')) return tg.send(chat, HELP, reply)
+  if (text === '/me') return tg.send(chat, `Вы — <b>${esc(c.member.name)}</b>. ${link(env, '/settings', 'Настройки уведомлений')}`, reply)
+  if (text === '/tasks') return tg.send(chat, tasksText(c, env), reply)
+  if (text === '/low') return tg.send(chat, lowText(c, env), reply)
 
   await tg.typing(chat)
   let raw: Record<string, unknown>
@@ -146,6 +155,9 @@ async function onCallback(cb: TgCallback, env: Env) {
   if (!msg || !id) return tg.answer(cb.id)
   const c = await db.context(cb.from.id)
   if (!c) return tg.answer(cb.id, 'Telegram не привязан к dashboard')
+  // в группе кнопки видят все, нажать может только автор команды
+  const owner = await db.pendingOwner(id)
+  if (owner && owner !== c.member.id) return tg.answer(cb.id, 'Это команда другого участника')
   const pending = await db.takePending(id, c.member.id)
   if (!pending) {
     await tg.answer(cb.id, 'Уже неактуально')

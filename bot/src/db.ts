@@ -46,6 +46,11 @@ export class Db {
   setPendingMessage(id: string, messageId: number) {
     return this.req(`fl_tg_pending?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ message_id: messageId }) })
   }
+  /** Чья команда ждёт подтверждения (null — нет такой или уже неактуальна). */
+  async pendingOwner(id: string) {
+    const rows = await this.req(`fl_tg_pending?id=eq.${id}&select=member_id&expires_at=gt.${new Date().toISOString()}`) as { member_id: string }[]
+    return rows[0]?.member_id ?? null
+  }
   async takePending(id: string, memberId: string) {
     // забираем и удаляем одним запросом: двойное нажатие не выполнит команду дважды
     const rows = await this.req(`fl_tg_pending?id=eq.${id}&member_id=eq.${memberId}&expires_at=gt.${new Date().toISOString()}`,
