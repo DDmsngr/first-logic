@@ -1,8 +1,8 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import {
-  COMPONENT_STATUSES, UNITS, createDict, deleteDict, fetchAllComponents, fetchAssemblies, fetchBomItems, fetchDicts, fetchProducts, fetchRates, fetchSuppliers, needsReorder,
+  COMPONENT_STATUSES, UNITS, createDict, refreshRates, deleteDict, fetchAllComponents, fetchAssemblies, fetchBomItems, fetchDicts, fetchProducts, fetchRates, fetchSuppliers, needsReorder,
   updateDict, type AssemblyInput, type Component, type ComponentInput, type Dict, type DictKind, type ProductInput, type Spec, type SupplierInput,
 } from './catalog'
 import { useWorkspace } from './auth'
@@ -14,6 +14,24 @@ import { Field, Modal, errMsg, useToast } from './ui'
 
 export function useRates() {
   return useQuery({ queryKey: ['rates'], queryFn: fetchRates, staleTime: 5 * 60_000 })
+}
+
+const STALE_MS = 12 * 3600_000
+
+/** Подтягивает курс ЦБ из браузера, если сохранённому больше 12 часов. Раз за сессию. */
+export function useAutoRates() {
+  const rates = useRates()
+  const qc = useQueryClient()
+  useEffect(() => {
+    if (!rates.data) return
+    const newest = Math.max(0, ...rates.data.map(r => (r.fetched_at ? Date.parse(r.fetched_at) : 0)))
+    if (Date.now() - newest < STALE_MS) return
+    try {
+      if (sessionStorage.getItem('fl-rates-tried')) return
+      sessionStorage.setItem('fl-rates-tried', '1')
+    } catch { /* нет sessionStorage — пробуем всё равно */ }
+    refreshRates().then(() => qc.invalidateQueries({ queryKey: ['rates'] })).catch(() => { /* покажет страница курсов */ })
+  }, [rates.data, qc])
 }
 
 export function useDicts(kind: DictKind) {

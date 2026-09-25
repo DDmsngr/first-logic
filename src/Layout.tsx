@@ -9,6 +9,7 @@ import { signOut, useWorkspace } from './auth'
 import { fetchNotifications, fetchUnread } from './api'
 import { Avatar, Brand, Modal } from './ui'
 import ChangePassword from './ChangePassword'
+import { useAutoRates } from './catalogParts'
 
 interface NavItem { to: string; label: string; icon: LucideIcon; end?: boolean; mobile?: boolean }
 
@@ -61,6 +62,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const nav = useNavigate()
   const loc = useLocation()
   const [more, setMore] = useState(false)
+  useAutoRates()
 
   const unread = useQuery({ queryKey: ['unread', wsId], queryFn: () => fetchUnread(wsId), refetchInterval: 60_000 })
   const notes = useQuery({ queryKey: ['notifications', wsId], queryFn: () => fetchNotifications(wsId), refetchInterval: 60_000 })

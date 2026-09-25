@@ -18,14 +18,14 @@ export default function CurrencyPage() {
 
   const refresh = useMutation({
     mutationFn: refreshRates,
-    onSuccess: () => { toast('Курсы обновлены'); qc.invalidateQueries({ queryKey: ['rates'] }) },
+    onSuccess: src => { toast(src === 'cbr' ? 'Курсы ЦБ обновлены' : 'Курсы обновлены сервером'); qc.invalidateQueries({ queryKey: ['rates'] }) },
     onError: e => toast(`Не удалось обновить: ${errMsg(e)}`, 'error'),
   })
 
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader title="Курсы валют"
-        sub={<>Курс ЦБ РФ обновляется автоматически раз в сутки, в 12:15 МСК. {lastFetch && <>Последнее обновление: <span title={fmtDateTime(lastFetch)}>{timeAgo(lastFetch)}</span>.</>}</>}
+        sub={<>Курс ЦБ РФ подтягивается сам: при открытии dashboard, если курсу больше 12 часов, и раз в сутки сервером. {lastFetch && <>Последнее обновление: <span title={fmtDateTime(lastFetch)}>{timeAgo(lastFetch)}</span>.</>}</>}
         actions={<button className="dash-btn dash-btn-ghost" disabled={refresh.isPending} onClick={() => refresh.mutate()}>
           <RefreshCw className={`h-4 w-4 ${refresh.isPending ? 'animate-spin' : ''}`} aria-hidden /> Обновить сейчас
         </button>} />
@@ -82,6 +82,7 @@ function RateRow({ r }: { r: Rate }) {
       <td className="px-3 py-3 text-right tabular-nums">
         {fmtRate(r.cbr_rate)} ₽
         <div className="dash-muted text-xs">{r.cbr_date ? `на ${fmtDate(r.cbr_date)}` : 'ещё не загружен'}</div>
+        {r.source === 'market' && r.cbr_rate !== null && <div className="text-[10px] text-[var(--d-warn)]" title="ЦБ был недоступен — взят рыночный курс exchangerate-api.com">рыночный, не ЦБ</div>}
       </td>
       <td className="px-3 py-3">
         <div className="flex max-w-44 items-center gap-1">

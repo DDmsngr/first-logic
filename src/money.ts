@@ -17,6 +17,8 @@ export interface Rate {
   fetched_at: string | null
   manual_rate: number | null
   updated_at: string
+  /** cbr — курс ЦБ РФ; market — рыночный (запасной источник) */
+  source?: 'cbr' | 'market'
 }
 
 /** Рублей за единицу валюты: ручной курс перекрывает курс ЦБ. null — курса нет. */

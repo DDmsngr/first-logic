@@ -28,8 +28,28 @@ export async function setManualRate(currency: Currency, rate: number | null) {
   one(check(await supabase.from('fl_rates').update({ manual_rate: rate }).eq('currency', currency).select('currency')), 'Курс')
 }
 
-export async function refreshRates() {
-  check(await supabase.rpc('fl_refresh_rates', { p_force: true }))
+const CBR_URL = 'https://www.cbr-xml-daily.ru/daily_json.js'
+
+/**
+ * Курс ЦБ берёт браузер: источник отвечает российским адресам и не отвечает
+ * серверам Supabase. Не вышло — просим базу (она попробует ЦБ, затем рыночный).
+ */
+export async function refreshRates(): Promise<'cbr' | 'server'> {
+  try {
+    const r = await fetch(CBR_URL, { cache: 'no-store' })
+    if (!r.ok) throw new Error(String(r.status))
+    const j = await r.json() as { Date: string; Valute: Record<string, { Nominal: number; Value: number }> }
+    const rates: Record<string, number> = {}
+    for (const c of ['USD', 'CNY', 'EUR']) {
+      const v = j.Valute?.[c]
+      if (v?.Nominal && v.Value) rates[c] = v.Value / v.Nominal
+    }
+    check(await supabase.rpc('fl_set_cbr_rates', { p_date: j.Date.slice(0, 10), p_rates: rates }))
+    return 'cbr'
+  } catch {
+    check(await supabase.rpc('fl_refresh_rates', { p_force: true }))
+    return 'server'
+  }
 }
 
 // ── справочники ─────────────────────────────────────────────────────────────
