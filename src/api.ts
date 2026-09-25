@@ -229,7 +229,7 @@ export async function deleteComment(id: string) {
 const BUCKET = 'ws-files'
 export const MAX_FILE = 25 * 1024 * 1024
 
-export interface UploadTarget { taskId?: string; messageId?: string; componentId?: string; supplierId?: string; productId?: string }
+export interface UploadTarget { taskId?: string; messageId?: string; componentId?: string; supplierId?: string; productId?: string; assemblyId?: string }
 
 const safeName = (n: string) => n.replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(-120)
 
@@ -242,7 +242,7 @@ export async function uploadFile(
   if (up.error) throw new Error(up.error.message)
   const ins = await supabase.from('ws_attachments').insert({
     task_id: target.taskId ?? null, message_id: target.messageId ?? null,
-    component_id: target.componentId ?? null, supplier_id: target.supplierId ?? null, product_id: target.productId ?? null,
+    component_id: target.componentId ?? null, supplier_id: target.supplierId ?? null, product_id: target.productId ?? null, assembly_id: target.assemblyId ?? null,
     storage_path: path, filename: file.name, mime: file.type || null, size: file.size,
   }).select().single()
   if (ins.error) {
@@ -270,13 +270,14 @@ export function fileLabels(files: Pick<Attachment, 'id' | 'mime' | 'filename' | 
 }
 
 export async function fetchAttachments(opts: {
-  taskId?: string; componentId?: string; supplierId?: string; productId?: string; workspaceId?: string; messageIds?: string[]; page?: number; q?: string
+  taskId?: string; componentId?: string; supplierId?: string; productId?: string; assemblyId?: string; workspaceId?: string; messageIds?: string[]; page?: number; q?: string
 }) {
   let q = supabase.from('ws_attachments').select('*').order('created_at', { ascending: false })
   if (opts.taskId) q = q.eq('task_id', opts.taskId)
   if (opts.componentId) q = q.eq('component_id', opts.componentId)
   if (opts.supplierId) q = q.eq('supplier_id', opts.supplierId)
   if (opts.productId) q = q.eq('product_id', opts.productId)
+  if (opts.assemblyId) q = q.eq('assembly_id', opts.assemblyId)
   if (opts.workspaceId) q = q.eq('workspace_id', opts.workspaceId)
   if (opts.messageIds) q = q.in('message_id', opts.messageIds)
   if (opts.q?.trim()) q = q.ilike('filename', `%${escapeLike(opts.q.trim())}%`)
@@ -451,7 +452,8 @@ export interface SearchResult {
   tasks: { id: string; num: number; title: string; status: TaskStatus }[]
   members: { user_id: string; name: string; email: string; role: string }[]
   messages: { id: string; conversation_id: string; body: string; created_at: string }[]
-  files: { id: string; task_id: string | null; component_id: string | null; supplier_id: string | null; product_id: string | null; filename: string; size: number }[]
+  files: { id: string; task_id: string | null; component_id: string | null; supplier_id: string | null; product_id: string | null; assembly_id: string | null; filename: string; size: number }[]
+  assemblies: { id: string; name: string; sku: string | null }[]
   products: { id: string; name: string; sku: string | null; version: string | null }[]
   components: { id: string; name: string; sku: string | null; manufacturer: string | null; stock: number; unit: string }[]
   suppliers: { id: string; name: string; contact: string | null }[]

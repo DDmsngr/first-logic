@@ -8,6 +8,7 @@ import { ComponentForm, ComponentStatusChip, DictChip, Price, Stock, useDicts, u
 import { fmtMoney, fmtQty, parseAmount, toRub } from '../money'
 import { fmtDateTime } from '../meta'
 import { ActivityList, FileList, UploadButton } from '../shared'
+import { UsedIn } from '../bom'
 import { PageHeader, QueryState, errMsg, useToast } from '../ui'
 
 export default function ComponentDetail() {
@@ -118,6 +119,11 @@ export default function ComponentDetail() {
           <p className="whitespace-pre-wrap text-sm">{c.notes}</p>
         </section>
       )}
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="Где используется">
+        <h2 className="dash-label mb-2">Где используется</h2>
+        <UsedIn target={{ componentId: c.id }} />
+      </section>
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="dash-card min-w-0 p-4" aria-label="Фото и документы">

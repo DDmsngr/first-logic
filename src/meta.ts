@@ -113,6 +113,11 @@ export function describeActivity(e: ActivityEvent, byUser: (id: string | null) =
     case 'product.price': return `${who} изменил(а) цену изделия «${m.title}»: ${fmtNum(m.from)} → ${fmtNum(m.to)}`
     case 'product.archived': return `${who} убрал(а) в архив изделие «${m.title}»`
     case 'product.restored': return `${who} вернул(а) из архива изделие «${m.title}»`
+    case 'assembly.created': return `${who} добавил(а) узел «${m.title}»`
+    case 'assembly.override': return m.to ? `${who} задал(а) ручную стоимость узла «${m.title}»: ${fmtNum(m.to)} ₽` : `${who} вернул(а) расчётную стоимость узла «${m.title}»`
+    case 'bom.added': return `${who} добавил(а) в «${m.title}»: ${m.child} × ${fmtNum(m.to)}`
+    case 'bom.removed': return `${who} убрал(а) из «${m.title}»: ${m.child}`
+    case 'bom.qty': return `${who} изменил(а) количество ${m.child} в «${m.title}»: ${fmtNum(m.from)} → ${fmtNum(m.to)}`
     case 'supplier.created': return `${who} добавил(а) поставщика «${m.title}»`
     default: return `${who}: ${e.action}`
   }

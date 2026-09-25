@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Archive, ArchiveRestore, ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react'
-import { deleteProduct, fetchProduct, updateProduct, type ProductInput } from '../catalog'
+import { deleteProduct, fetchProduct, sellingPrice, updateProduct, type ProductInput } from '../catalog'
 import { fetchAttachments, fetchTasks } from '../api'
 import { useWorkspace } from '../auth'
-import { Price, ProductForm, SpecsEditor, useDicts } from '../catalogParts'
+import { Price, ProductForm, SpecsEditor, useCosting, useDicts, useRates } from '../catalogParts'
+import { BatchNeeds, BomEditor } from '../bom'
+import { fmtMoney, toRub } from '../money'
 import Md from '../Md'
 import { ActivityList, FileList, UploadButton } from '../shared'
 import { CreateTaskModal, DueLabel, PriorityChip, StatusChip } from '../taskParts'
@@ -29,6 +31,8 @@ export default function ProductDetail() {
     queryFn: () => fetchTasks(project.id, { sort: 'priority', product: id }),
   })
   const files = useQuery({ queryKey: ['attachments', 'product', id], queryFn: () => fetchAttachments({ productId: id }) })
+  const costing = useCosting()
+  const rates = useRates()
 
   const save = useMutation({
     mutationFn: (patch: Partial<ProductInput & { archived_at: string | null }>) => updateProduct(id, patch),
@@ -49,6 +53,11 @@ export default function ProductDetail() {
   if (!p) return <QueryState loading={q.isLoading} error={q.error} onRetry={() => q.refetch()} empty emptyText="Изделие не найдено"><></></QueryState>
 
   const status = statuses.data?.find(s => s.id === p.status_id)
+  const cost = costing.k?.product(p.id)
+  const material = cost?.total ?? null
+  const bomLines = cost?.lines.length ?? 0
+  const price = sellingPrice(p)
+  const priceRub = price === null ? null : toRub(price, p.price_currency, rates.data ?? [])
   const all = tasks.data ?? []
   const open = all.filter(t => t.status !== 'done')
   const done = all.filter(t => t.status === 'done')
@@ -88,7 +97,7 @@ export default function ProductDetail() {
             <div className="flex items-start justify-between gap-2"><dt className="dash-muted">Плановая</dt><dd className="text-right">{p.planned_price === null ? '—' : <Price amount={p.planned_price} currency={p.price_currency} />}</dd></div>
             <div className="flex items-start justify-between gap-2"><dt className="dash-muted">Фактическая</dt><dd className="text-right font-semibold">{p.actual_price === null ? '—' : <Price amount={p.actual_price} currency={p.price_currency} />}</dd></div>
           </dl>
-          <p className="dash-muted mt-3 border-t border-[var(--d-line)] pt-2 text-xs">Себестоимость и маржа появятся, когда у изделия будет состав (BOM).</p>
+          <MaterialCost material={material} priceRub={priceRub} empty={!bomLines} />
         </section>
 
         <section className="dash-card p-4 md:col-span-2" aria-label="Характеристики">
@@ -120,6 +129,16 @@ export default function ProductDetail() {
           {p.notes && <div><h2 className="dash-label mb-1.5">Заметки</h2><Md>{p.notes}</Md></div>}
         </section>
       )}
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="Состав изделия">
+        <h2 className="dash-label mb-3">Состав (BOM)</h2>
+        <BomEditor parent={{ productId: p.id }} />
+      </section>
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="Потребность на партию">
+        <h2 className="dash-label mb-3">Потребность в компонентах на партию</h2>
+        <BatchNeeds parent={{ productId: p.id }} />
+      </section>
 
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Задачи изделия">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -175,6 +194,25 @@ export default function ProductDetail() {
       </div>
 
       {newTask && <CreateTaskModal open onClose={() => { setNewTask(false); qc.invalidateQueries({ queryKey: ['tasks'] }) }} initialProductId={p.id} />}
+    </div>
+  )
+}
+
+/** Материалы по BOM и их доля в цене. Полная себестоимость и маржа — в финансах. */
+function MaterialCost({ material, priceRub, empty }: { material: number | null; priceRub: number | null; empty: boolean }) {
+  if (empty) return <p className="dash-muted mt-3 border-t border-[var(--d-line)] pt-2 text-xs">Добавьте состав ниже — посчитаем стоимость материалов.</p>
+  const share = material !== null && priceRub ? (material / priceRub) * 100 : null
+  return (
+    <div className="mt-3 space-y-1.5 border-t border-[var(--d-line)] pt-2 text-sm">
+      <div className="flex items-start justify-between gap-2"><span className="dash-muted">Материалы (BOM)</span><b className="tabular-nums">{fmtMoney(material, 'RUB')}</b></div>
+      {share !== null && (
+        <>
+          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--d-line)]" aria-hidden>
+            <div className="h-full rounded-full" style={{ width: `${Math.min(share, 100)}%`, background: share > 100 ? 'var(--d-danger)' : 'var(--d-accent)' }} />
+          </div>
+          <div className={`text-xs ${share > 100 ? 'text-[var(--d-danger)]' : 'dash-muted'}`}>материалы — {share.toFixed(0)}% цены продажи</div>
+        </>
+      )}
     </div>
   )
 }

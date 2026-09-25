@@ -1,6 +1,7 @@
 // Данные производства: курсы, справочники, поставщики, компоненты.
 import { supabase } from './supabase'
 import type { Currency, Rate } from './money'
+import type { BomItem } from './costing'
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message)
@@ -230,3 +231,87 @@ export async function deleteProduct(id: string) {
 
 /** Цена продажи для расчётов: фактическая, если есть, иначе плановая. */
 export const sellingPrice = (p: Pick<Product, 'planned_price' | 'actual_price'>) => p.actual_price ?? p.planned_price
+
+// ── узлы ────────────────────────────────────────────────────────────────────
+
+export interface Assembly {
+  id: string
+  workspace_id: string
+  name: string
+  sku: string | null
+  description: string
+  cost_override: number | null
+  notes: string
+  created_at: string
+  updated_at: string
+  archived_at: string | null
+}
+
+export type AssemblyInput = Pick<Assembly, 'name' | 'sku' | 'description' | 'cost_override' | 'notes'>
+
+const asm = (a: Assembly): Assembly => ({ ...a, cost_override: a.cost_override === null ? null : Number(a.cost_override) })
+
+/** Все узлы, включая архивные: архивный узел может стоять в чьём-то составе. */
+export async function fetchAssemblies(workspaceId: string) {
+  return (check(await supabase.from('fl_assemblies').select('*').eq('workspace_id', workspaceId).order('name')) as Assembly[]).map(asm)
+}
+
+export async function fetchAssembly(id: string) {
+  const a = check(await supabase.from('fl_assemblies').select('*').eq('id', id).maybeSingle()) as Assembly | null
+  return a ? asm(a) : null
+}
+
+export async function createAssembly(workspaceId: string, a: AssemblyInput) {
+  return asm(check(await supabase.from('fl_assemblies').insert({ workspace_id: workspaceId, ...a }).select().single()) as Assembly)
+}
+
+export async function updateAssembly(id: string, patch: Partial<AssemblyInput & { archived_at: string | null }>) {
+  one(check(await supabase.from('fl_assemblies').update(patch).eq('id', id).select('id')), 'Узел')
+}
+
+export async function deleteAssembly(id: string) {
+  const atts = check(await supabase.from('ws_attachments').select('storage_path').eq('assembly_id', id)) as { storage_path: string }[]
+  one(check(await supabase.from('fl_assemblies').delete().eq('id', id).select('id')), 'Узел')
+  if (atts.length) await supabase.storage.from('ws-files').remove(atts.map(a => a.storage_path))
+}
+
+// ── BOM ─────────────────────────────────────────────────────────────────────
+
+const bom = (b: BomItem): BomItem => ({
+  ...b, qty: Number(b.qty), price_override: b.price_override === null ? null : Number(b.price_override),
+})
+
+export async function fetchBomItems(workspaceId: string) {
+  return (check(await supabase.from('fl_bom_items').select('*').eq('workspace_id', workspaceId)
+    .order('position').order('created_at')) as BomItem[]).map(bom)
+}
+
+export interface NewBomItem {
+  parent_product_id?: string
+  parent_assembly_id?: string
+  component_id?: string
+  child_assembly_id?: string
+  qty: number
+  position: number
+}
+
+export async function addBomItem(workspaceId: string, it: NewBomItem) {
+  const res = await supabase.from('fl_bom_items').insert({ workspace_id: workspaceId, ...it }).select().single()
+  if (res.error?.code === '23505') throw new Error('Эта позиция уже есть в составе — измените количество в строке')
+  return bom(check(res) as BomItem)
+}
+
+export type BomPatch = Partial<Pick<BomItem, 'qty' | 'price_override' | 'price_currency' | 'note' | 'position'>>
+
+export async function updateBomItem(id: string, patch: BomPatch) {
+  one(check(await supabase.from('fl_bom_items').update(patch).eq('id', id).select('id')), 'Строка состава')
+}
+
+export async function deleteBomItem(id: string) {
+  one(check(await supabase.from('fl_bom_items').delete().eq('id', id).select('id')), 'Строка состава')
+}
+
+/** Все компоненты, включая архивные: для расчёта состава. */
+export async function fetchAllComponents(workspaceId: string) {
+  return (check(await supabase.from('fl_components').select('*').eq('workspace_id', workspaceId).order('name')) as Component[]).map(num)
+}

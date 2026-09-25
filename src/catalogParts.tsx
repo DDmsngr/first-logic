@@ -1,11 +1,12 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import {
-  COMPONENT_STATUSES, UNITS, createDict, deleteDict, fetchDicts, fetchProducts, fetchRates, fetchSuppliers, needsReorder,
-  updateDict, type Component, type ComponentInput, type Dict, type DictKind, type ProductInput, type Spec, type SupplierInput,
+  COMPONENT_STATUSES, UNITS, createDict, deleteDict, fetchAllComponents, fetchAssemblies, fetchBomItems, fetchDicts, fetchProducts, fetchRates, fetchSuppliers, needsReorder,
+  updateDict, type AssemblyInput, type Component, type ComponentInput, type Dict, type DictKind, type ProductInput, type Spec, type SupplierInput,
 } from './catalog'
 import { useWorkspace } from './auth'
+import { createCosting } from './costing'
 import { CURRENCIES, fmtMoney, fmtQty, parseAmount, toRub, type Currency } from './money'
 import { Field, Modal, errMsg, useToast } from './ui'
 
@@ -23,6 +24,34 @@ export function useDicts(kind: DictKind) {
 export function useSuppliers() {
   const { workspace } = useWorkspace()
   return useQuery({ queryKey: ['suppliers', workspace.id], queryFn: () => fetchSuppliers(workspace.id) })
+}
+
+/** Узлы (все, включая архивные). */
+export function useAssemblies() {
+  const { workspace } = useWorkspace()
+  return useQuery({ queryKey: ['assemblies', workspace.id], queryFn: () => fetchAssemblies(workspace.id) })
+}
+
+/**
+ * Всё для расчёта состава: компоненты, узлы, строки BOM и курсы. Возвращает
+ * считалку из costing.ts; пока что-то грузится — null.
+ */
+export function useCosting() {
+  const { workspace } = useWorkspace()
+  const comps = useQuery({ queryKey: ['components', workspace.id, 'all'], queryFn: () => fetchAllComponents(workspace.id) })
+  const asms = useAssemblies()
+  const items = useQuery({ queryKey: ['bom', workspace.id], queryFn: () => fetchBomItems(workspace.id) })
+  const rates = useRates()
+  const ready = comps.data && asms.data && items.data && rates.data
+  const k = useMemo(() => (ready ? createCosting({
+    components: comps.data!, assemblies: asms.data!, items: items.data!, rates: rates.data!,
+  }) : null), [ready, comps.data, asms.data, items.data, rates.data])
+  return {
+    k, loading: !ready && !(comps.error || asms.error || items.error || rates.error),
+    error: comps.error ?? asms.error ?? items.error ?? rates.error,
+    components: comps.data ?? [], assemblies: asms.data ?? [], items: items.data ?? [],
+    retry: () => { void comps.refetch(); void asms.refetch(); void items.refetch(); void rates.refetch() },
+  }
 }
 
 export function useProducts() {
@@ -391,6 +420,43 @@ export function SpecsEditor({ specs, busy, onSave, onCancel }: {
           <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" onClick={onCancel}>Отмена</button>
           <button className="dash-btn dash-btn-sm" disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить'}</button>
         </div>
+      </div>
+    </form>
+  )
+}
+
+// ── форма узла ──────────────────────────────────────────────────────────────
+
+export const EMPTY_ASSEMBLY: AssemblyInput = { name: '', sku: null, description: '', cost_override: null, notes: '' }
+
+export function AssemblyForm({ initial, submitLabel, busy, onSubmit, onCancel }: {
+  initial: AssemblyInput; submitLabel: string; busy?: boolean
+  onSubmit: (a: AssemblyInput) => void; onCancel?: () => void
+}) {
+  const toast = useToast()
+  const [f, setF] = useState({
+    name: initial.name, sku: str(initial.sku), description: initial.description, notes: initial.notes,
+    override: initial.cost_override === null ? '' : String(initial.cost_override),
+  })
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF(x => ({ ...x, [k]: e.target.value }))
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    const o = f.override.trim() ? parseAmount(f.override) : null
+    if (o !== null && (!Number.isFinite(o) || o < 0)) { toast('Ручная стоимость должна быть неотрицательным числом', 'error'); return }
+    onSubmit({ name: f.name.trim(), sku: orNull(f.sku), description: f.description, notes: f.notes, cost_override: o })
+  }
+  return (
+    <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
+      <div className="sm:col-span-2"><Field label="Название"><input className="dash-input" required autoFocus maxLength={200} value={f.name} onChange={set('name')} placeholder="Выходной каскад 100W" /></Field></div>
+      <Field label="Артикул"><input className="dash-input dash-mono" value={f.sku} onChange={set('sku')} placeholder="FL-ASM-PA100" /></Field>
+      <Field label="Ручная стоимость, ₽" hint="Для покупного модуля или уточнённой оценки. Пусто — считается по составу">
+        <input className="dash-input" inputMode="decimal" value={f.override} onChange={set('override')} placeholder="по составу" />
+      </Field>
+      <div className="sm:col-span-2"><Field label="Описание"><textarea className="dash-input" value={f.description} onChange={set('description')} /></Field></div>
+      <div className="sm:col-span-2"><Field label="Заметки"><textarea className="dash-input" value={f.notes} onChange={set('notes')} /></Field></div>
+      <div className="flex justify-end gap-2 sm:col-span-2">
+        {onCancel && <button type="button" className="dash-btn dash-btn-ghost" onClick={onCancel}>Отмена</button>}
+        <button className="dash-btn" disabled={busy || !f.name.trim()}>{busy ? 'Сохраняем…' : submitLabel}</button>
       </div>
     </form>
   )

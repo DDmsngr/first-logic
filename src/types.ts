@@ -65,6 +65,7 @@ export interface Attachment {
   message_id: string | null
   component_id: string | null
   product_id: string | null
+  assembly_id: string | null
   supplier_id: string | null
   storage_path: string
   filename: string

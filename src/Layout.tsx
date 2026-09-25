@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Bell, Box, Coins, Cpu, FolderOpen, LayoutDashboard, ListChecks, LogOut, Menu, MessageSquare, Search, Settings, Truck, Users,
+  Bell, Box, Boxes, Coins, Cpu, FolderOpen, LayoutDashboard, ListChecks, LogOut, Menu, MessageSquare, Search, Settings, Truck, Users,
   type LucideIcon,
 } from 'lucide-react'
 import { signOut, useWorkspace } from './auth'
@@ -26,6 +26,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: 'Производство',
     items: [
       { to: '/products', label: 'Изделия', icon: Box, mobile: true },
+      { to: '/assemblies', label: 'Узлы', icon: Boxes },
       { to: '/components', label: 'Компоненты', icon: Cpu },
       { to: '/suppliers', label: 'Поставщики', icon: Truck },
     ],

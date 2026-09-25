@@ -162,6 +162,7 @@ export function FileList({ files, showTask, labelsFrom }: {
                 {showTask && a.task_id && <> · <Link className="underline" to={`/tasks/${a.task_id}`}>задача</Link></>}
                 {showTask && a.component_id && <> · <Link className="underline" to={`/components/${a.component_id}`}>компонент</Link></>}
                 {showTask && a.product_id && <> · <Link className="underline" to={`/products/${a.product_id}`}>изделие</Link></>}
+                {showTask && a.assembly_id && <> · <Link className="underline" to={`/assemblies/${a.assembly_id}`}>узел</Link></>}
                 {showTask && a.supplier_id && <> · <Link className="underline" to={`/suppliers/${a.supplier_id}`}>поставщик</Link></>}
               </div>
             </div>
