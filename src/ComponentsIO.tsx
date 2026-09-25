@@ -1,3 +1,4 @@
+import { CreateOrdersButton } from './orderCreate'
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Copy, FileDown, FileUp } from 'lucide-react'
@@ -42,6 +43,7 @@ function ImportModal({ onClose }: { onClose: () => void }) {
   const file = useRef<HTMLInputElement>(null)
   const [text, setText] = useState('')
   const [updatePrices, setUpdatePrices] = useState(false)
+  const [defaultMin, setDefaultMin] = useState('')
   const [done, setDone] = useState<{ created: number; updated: number; suppliers: number } | null>(null)
 
   const parsed = useMemo(() => (text.trim() ? parseComponentFile(text, {
@@ -74,7 +76,7 @@ function ImportModal({ onClose }: { onClose: () => void }) {
       const inputs: ComponentInput[] = fresh.map(r => ({
         name: r.name, category_id: r.categoryId, sku: r.sku, manufacturer: r.manufacturer,
         supplier_id: r.supplierId ?? (r.supplierName ? supIds.get(lc(r.supplierName)) ?? null : null),
-        url: r.url, unit: r.unit, price: r.price, currency: r.currency, stock: r.stock ?? 0, min_stock: r.minStock ?? 0,
+        url: r.url, unit: r.unit, price: r.price, currency: r.currency, stock: r.stock ?? 0, min_stock: r.minStock ?? (parseAmount(defaultMin) > 0 ? parseAmount(defaultMin) : 0),
         status: 'active', location: r.location, notes: r.notes,
       }))
       const created = await createComponentsBulk(workspace.id, inputs)
@@ -133,6 +135,11 @@ function ImportModal({ onClose }: { onClose: () => void }) {
                   <span>Обновить цену у тех, что уже есть в справочнике ({existing.length})<span className="dash-muted block text-xs">Иначе они пропускаются. Остаток и остальные поля не меняются.</span></span>
                 </label>
               )}
+              <label className="flex flex-wrap items-center gap-2 text-sm">
+                Минимальный остаток для новых, где он не указан:
+                <input className="dash-input !min-h-8 !w-20 text-right" inputMode="decimal" placeholder="0" value={defaultMin} onChange={e => setDefaultMin(e.target.value)} aria-label="Минимальный остаток по умолчанию" />
+                <span className="dash-muted text-xs">ниже него компонент попадёт в «Заказать»</span>
+              </label>
               <p className="dash-muted text-xs">
                 Новых: {fresh.length}{newSuppliers.length > 0 && `, будет создано поставщиков: ${newSuppliers.length}`}
                 {withoutPrice > 0 && `, без цены: ${withoutPrice}`}
@@ -239,6 +246,7 @@ function OrderModal({ items, scope, onClose }: { items: Component[]; scope: 'lis
         </p>
         <div className="flex flex-wrap justify-end gap-2 pt-1">
           <button className="dash-btn dash-btn-ghost" onClick={onClose}>Готово</button>
+          <CreateOrdersButton rows={rows} onDone={onClose} />
           <button className="dash-btn dash-btn-ghost" disabled={rows.length === 0} onClick={() => void copy()}>Скопировать список</button>
           <button className="dash-btn" disabled={rows.length === 0}
             onClick={() => saveText(`Заказ до ${target} шт ${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows, heading))}>Скачать CSV (Excel)</button>

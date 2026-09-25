@@ -331,6 +331,8 @@ export async function fetchActivity(workspaceId: string, page: number, only: { e
     .order('created_at', { ascending: false }).range(page * PAGE, page * PAGE + PAGE - 1)
   if (only.entityId) q = q.eq('entity_id', only.entityId)
   if (only.actorId) q = q.eq('actor_id', only.actorId)
+  // в общей ленте списания по сборке и приёмке показываются одной строкой операции
+  if (!only.entityId) q = q.is('meta->>reason', null)
   return check(await q) as ActivityEvent[]
 }
 

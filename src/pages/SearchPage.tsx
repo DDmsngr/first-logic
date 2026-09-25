@@ -1,3 +1,4 @@
+import { searchOrders } from '../stock'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { search } from '../api'
@@ -10,9 +11,10 @@ export default function SearchPage() {
   const q = useSearchParams()[0].get('q')?.trim() ?? ''
   const { workspace } = useWorkspace()
   const res = useQuery({ queryKey: ['search', workspace.id, q], queryFn: () => search(workspace.id, q), enabled: q.length >= 2 })
+  const orders = useQuery({ queryKey: ['search-orders', workspace.id, q], queryFn: () => searchOrders(workspace.id, q), enabled: q.length >= 1 })
   const d = res.data
   const total = d ? d.tasks.length + d.members.length + d.messages.length + d.files.length
-    + (d.components?.length ?? 0) + (d.suppliers?.length ?? 0) + (d.products?.length ?? 0) + (d.assemblies?.length ?? 0) + (d.expenses?.length ?? 0) : 0
+    + (d.components?.length ?? 0) + (d.suppliers?.length ?? 0) + (d.products?.length ?? 0) + (d.assemblies?.length ?? 0) + (d.expenses?.length ?? 0) + (orders.data?.length ?? 0) : 0
 
   const Group = ({ title, children, n }: { title: string; children: React.ReactNode; n: number }) => n === 0 ? null : (
     <section className="dash-card mb-4 p-4" aria-label={title}><h2 className="dash-label mb-2">{title} · {n}</h2><ul>{children}</ul></section>
@@ -28,6 +30,9 @@ export default function SearchPage() {
           </Group>
           <Group title="Изделия" n={d?.products?.length ?? 0}>
             {d?.products?.map(p => <li key={p.id} className="dash-row py-2"><Link className="text-sm hover:underline" to={`/products/${p.id}`}>{p.name}{p.version ? ` ${p.version}` : ''}</Link> <span className="dash-muted dash-mono text-xs">{p.sku}</span></li>)}
+          </Group>
+          <Group title="Заказы" n={orders.data?.length ?? 0}>
+            {orders.data?.map(o => <li key={o.id} className="dash-row py-2"><Link className="text-sm hover:underline" to={`/orders/${o.id}`}>Заказ №{o.num}</Link> <span className="dash-muted text-xs">{o.supplier ?? 'без поставщика'}</span></li>)}
           </Group>
           <Group title="Расходы" n={d?.expenses?.length ?? 0}>
             {d?.expenses?.map(e => <li key={e.id} className="dash-row py-2"><Link className="text-sm hover:underline" to="/finance?period=all">{e.description}</Link> <span className="dash-muted text-xs">{fmtDate(e.spent_on)} · {fmtMoney(Number(e.amount_rub), 'RUB')}</span></li>)}

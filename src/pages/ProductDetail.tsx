@@ -1,3 +1,4 @@
+import { BuildPanel } from '../builds'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -147,6 +148,11 @@ export default function ProductDetail() {
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Потребность на партию">
         <h2 className="dash-label mb-3">Потребность в компонентах на партию</h2>
         <BatchNeeds parent={{ productId: p.id }} title={`${p.name}${p.version ? ' ' + p.version : ''}`} />
+      </section>
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="Сборка">
+        <h2 className="dash-label mb-3">Сборка — списание со склада</h2>
+        <BuildPanel target={{ productId: p.id }} />
       </section>
 
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Задачи изделия">

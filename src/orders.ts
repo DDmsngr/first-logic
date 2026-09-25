@@ -103,3 +103,34 @@ export function toText(rows: OrderRow[], title: string): string {
   }
   return out.join('\n')
 }
+
+// ── документ заказа поставщику ──────────────────────────────────────────────
+
+export interface PoLine { name: string; unit: string; qty: number; price: number; currency: Currency; sku?: string | null }
+
+/** Заказ поставщику: позиции, цены в валюте заказа и итог по каждой валюте. */
+export function purchaseOrderCsv(title: string, lines: PoLine[]): string {
+  const rows: (string | number)[][] = [[title], [], ['№', 'Артикул', 'Наименование', 'Кол-во', 'Ед.', 'Цена', 'Валюта', 'Сумма']]
+  lines.forEach((l, i) => rows.push([i + 1, l.sku ?? '', l.name, l.qty, l.unit, l.price > 0 ? l.price : '', l.price > 0 ? l.currency : '', l.price > 0 ? round3(l.qty * l.price) : '']))
+  const byCur = new Map<string, number>()
+  for (const l of lines) if (l.price > 0) byCur.set(l.currency, (byCur.get(l.currency) ?? 0) + l.qty * l.price)
+  rows.push([])
+  for (const [cur, sum] of byCur) rows.push(['', '', 'ИТОГО', '', '', '', cur, Math.round(sum * 100) / 100])
+  return '﻿' + rows.map(r => r.map(cell).join(';')).join('\r\n') + '\r\n'
+}
+
+export function purchaseOrderText(title: string, lines: PoLine[]): string {
+  return [title, '', ...lines.map((l, i) => `${i + 1}. ${l.name}${l.sku ? ` (${l.sku})` : ''} — ${l.qty} ${l.unit}`)].join('\n')
+}
+
+/** Сумма заказа в рублях по текущему курсу; null — есть позиции без цены или курса. */
+export function purchaseOrderRub(lines: PoLine[], rates: Rate[]) {
+  let sum = 0
+  let unknown = 0
+  for (const l of lines) {
+    const k = l.price > 0 ? toRub(l.price, l.currency, rates) : null
+    if (k === null) unknown++
+    else sum += k * l.qty
+  }
+  return { sum, unknown }
+}

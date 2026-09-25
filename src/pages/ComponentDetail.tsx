@@ -1,3 +1,4 @@
+import { OffersPanel } from '../offers'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -119,6 +120,11 @@ export default function ComponentDetail() {
           <p className="whitespace-pre-wrap text-sm">{c.notes}</p>
         </section>
       )}
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="Поставщики и цены">
+        <h2 className="dash-label mb-2">Поставщики и цены</h2>
+        <OffersPanel c={c} />
+      </section>
 
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Где используется">
         <h2 className="dash-label mb-2">Где используется</h2>

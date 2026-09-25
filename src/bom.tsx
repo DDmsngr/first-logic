@@ -1,3 +1,4 @@
+import { CreateOrdersButton } from './orderCreate'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -451,6 +452,7 @@ function OrderExport({ need, sets, title }: { need: Map<string, number>; sets: n
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button className="dash-btn dash-btn-sm" disabled={rows.length === 0} onClick={download}>Скачать CSV (Excel)</button>
         <button className="dash-btn dash-btn-ghost dash-btn-sm" disabled={rows.length === 0} onClick={() => void copy()}>Скопировать список</button>
+        <CreateOrdersButton rows={rows} />
         <span className="dash-muted text-xs tabular-nums">
           {rows.length === 0 ? 'Под условия ничего не подходит' : <>Позиций: {t.positions} · ≈ {fmtMoney(t.sumRub, 'RUB')}{t.withoutPrice > 0 && ` · без цены: ${t.withoutPrice}`}</>}
         </span>
