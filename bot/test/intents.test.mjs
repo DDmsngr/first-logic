@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { describe, needsConfirm, normalize } from '../src/intents.ts'
+import { canAttach, describe, needsConfirm, normalize } from '../src/intents.ts'
 
 const ctx = {
   member: { id: 'm1', user_id: 'u1', name: 'Алексей', workspace_id: 'w1' },
@@ -62,4 +62,12 @@ test('сборка: изделие и количество из справочн
   assert.equal(needsConfirm(intent), true)
   assert.match(describe(intent, ctx, esc).join('\n'), /Собрали «Усилитель 100W УКВ» v2\.1 × 3/)
   assert.ok(normalize({ intent: 'build', confidence: 0.9, qty: 3 }, ctx).missing.includes('изделие из справочника'))
+})
+
+test('файл из Telegram: прикрепляется только к задаче и заметке, виден в подтверждении', () => {
+  assert.equal(canAttach({ intent: 'create_task' }), true)
+  assert.equal(canAttach({ intent: 'add_note' }), true)
+  assert.equal(canAttach({ intent: 'create_expense' }), false)
+  const i = { intent: 'create_task', title: 'Разобрать таблицу', tg_file: { file_id: 'x', name: 'табл.pdf', mime: 'application/pdf', size: 10 } }
+  assert.ok(describe(i, ctx, s => s).includes('📎 табл.pdf'))
 })

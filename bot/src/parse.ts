@@ -50,7 +50,7 @@ const RULES = `Ты — разборщик команд для рабочего 
 - create_product / create_assembly — новое изделие / новый узел.
 - add_note — заметка к изделию («запиши к 100W: …»).
 - build — изделия собраны, нужно списать детали («собрал 3 сотки», «собрали 2 усилителя 200W»): product_id и qty.
-- query — вопрос о данных (остатки, мои задачи, цена компонента). Ответ положи в answer, только по данным контекста; если данных нет — так и скажи.
+- query — вопрос о данных (остатки, мои задачи, свободные задачи, чужие задачи, цена компонента). Ответ положи в answer, только по данным контекста; если данных нет — так и скажи.
 - unknown — непонятно; в clarification напиши, что уточнить.
 
 Правила:
@@ -59,6 +59,7 @@ const RULES = `Ты — разборщик команд для рабочего 
 - Приоритет: «срочно» — high, «очень срочно/горит» — critical, иначе normal.
 - Суммы: «8500», «8,5к» = 8500, «3200 рублей» = RUB, «$150» = USD, «юаней» = CNY. Рубли по умолчанию.
 - Категорию расхода подбери из expense_categories по смыслу (изготовление корпусов → Производство).
+- «Свободные», «ничьи», «неназначенные» задачи — это free_tasks (задачи без исполнителя); «мои» — my_open_tasks; «у Ивана», «кто чем занят» — team_open_tasks. Перечисли их с номерами: «#5 Название». Если список пуст — так и скажи.
 - confidence ниже 0.6, если сомневаешься в типе команды или в том, к какому изделию/компоненту она относится.`
 
 export class LimitError extends Error {}
@@ -82,7 +83,7 @@ export async function parseMessage(text: string, ctx: Ctx, today: string, apiKey
     today, me: ctx.member.name,
     products: ctx.products, components: ctx.components.map(c => ({ id: c.id, name: c.name, sku: c.sku, unit: c.unit, stock: c.stock, price: c.price, currency: c.currency })),
     suppliers: ctx.suppliers, expense_categories: ctx.expense_categories, component_categories: ctx.component_categories,
-    members: ctx.members, my_open_tasks: ctx.my_tasks,
+    members: ctx.members, my_open_tasks: ctx.my_tasks, free_tasks: ctx.free_tasks ?? [], team_open_tasks: ctx.team_tasks ?? [],
   }
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: RULES }] },

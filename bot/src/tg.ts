@@ -8,6 +8,8 @@ export interface TgMessage {
   text?: string
   caption?: string
   reply_to_message?: TgMessage
+  document?: { file_id: string; file_name?: string; mime_type?: string; file_size?: number }
+  photo?: { file_id: string; file_size?: number; width: number; height: number }[]
 }
 export interface TgCallback { id: string; from: TgUser; data?: string; message?: TgMessage }
 export interface TgUpdate { update_id: number; message?: TgMessage; edited_message?: TgMessage; callback_query?: TgCallback }
@@ -47,6 +49,15 @@ export class Tg {
     return this.call('answerCallbackQuery', { callback_query_id: callbackId, ...(text ? { text } : {}) })
   }
 
+  /** Скачивает файл по file_id (Bot API отдаёт до 20 МБ). */
+  async download(fileId: string) {
+    const info = await this.call('getFile', { file_id: fileId }) as { file_path?: string }
+    if (!info.file_path) throw new Error('Telegram не отдал файл')
+    const r = await fetch(`https://api.telegram.org/file/bot${this.token}/${info.file_path}`)
+    if (!r.ok) throw new Error(`Telegram: файл не скачался (${r.status})`)
+    return r.arrayBuffer()
+  }
+
   typing(chatId: number) {
     return this.call('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => undefined)
   }
@@ -60,6 +71,7 @@ export class Tg {
       commands: [
         { command: 'help', description: 'Что я умею' },
         { command: 'tasks', description: 'Мои открытые задачи' },
+        { command: 'free', description: 'Свободные задачи' },
         { command: 'low', description: 'Что пора заказать' },
         { command: 'digest', description: 'Сводка на сегодня' },
         { command: 'me', description: 'Чей это аккаунт' },

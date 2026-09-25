@@ -17,7 +17,14 @@ export interface Intent {
   amount?: number; currency?: string; category_id?: string; supplier_id?: string; component_id?: string; spent_on?: string; note?: string
   qty?: number; price?: number; name?: string; sku?: string; unit?: string; version?: string; text?: string
   answer?: string; clarification?: string
+  /** Файл из Telegram, который прикрепим к созданной задаче или заметке. Ставит бот, не модель. */
+  tg_file?: TgFile
 }
+
+export interface TgFile { file_id: string; name: string; mime: string | null; size: number }
+
+/** К чему можно прикрепить файл. */
+export const canAttach = (i: Intent) => ['create_task', 'add_note'].includes(i.intent)
 
 const PRIORITY: Record<string, string> = { low: 'low', normal: 'medium', medium: 'medium', high: 'high', urgent: 'critical', critical: 'critical' }
 const STATUS = ['backlog', 'todo', 'in_progress', 'review', 'blocked', 'done']
@@ -132,6 +139,7 @@ export function describe(i: Intent, ctx: Ctx, esc: (s: string) => string): strin
     case 'build': out.push(`Собрали ${q(product!.name)}${product!.version ? ` ${esc(product!.version)}` : ''} × ${i.qty}`, 'Компоненты по составу спишутся со склада'); break
   }
   if (product && i.intent !== 'add_note' && i.intent !== 'build') out.push(`Изделие: ${esc(product.name)}${product.version ? ` ${esc(product.version)}` : ''}`)
+  if (i.tg_file) out.push(`📎 ${esc(i.tg_file.name)}`)
   return out
 }
 

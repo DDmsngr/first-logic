@@ -3,7 +3,7 @@
 // Обратно: очередь fl_outbox (её наполняют триггеры базы) → уведомления раз в минуту.
 
 import { Db, type Ctx, type Digest } from './db'
-import { ASK_TITLE, DONE_TITLE, describe, needsConfirm, normalize, type Intent } from './intents'
+import { ASK_TITLE, DONE_TITLE, canAttach, describe, needsConfirm, normalize, type Intent, type TgFile } from './intents'
 import { LimitError, parseMessage } from './parse'
 import { isGroupChat, routeText } from './route'
 import { Tg, esc, type TgCallback, type TgMessage, type TgUpdate } from './tg'
@@ -28,8 +28,10 @@ const HELP = `Я — вход в dashboard First Logic. Пишите обычн�
 • <i>Добавь 5 шт BLF188XR по 3200</i> — приход на склад (спрошу подтверждение)
 • <i>Собрал 3 сотки</i> — списать детали по составу (спрошу подтверждение)
 • <i>Сколько осталось SMA?</i> — вопрос по данным
+• <i>Какие задачи свободные?</i> — или /free
+• Файл или фото с подписью <i>«Задача: …»</i> — прикреплю к новой задаче
 
-Команды: /tasks — мои задачи, /low — что пора заказать, /digest — сводка на сегодня, /me — чей аккаунт.
+Команды: /tasks — мои задачи, /free — свободные, /low — что пора заказать, /digest — сводка на сегодня, /me — чей аккаунт.
 
 В группе начинайте сообщение с @first_logic_bot или отвечайте на мои сообщения — иначе я молчу.`
 
@@ -77,11 +79,17 @@ async function onMessage(msg: TgMessage, env: Env) {
   const db = new Db(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY)
   const chat = msg.chat.id
   const inGroup = isGroupChat(msg.chat.type)
+  const file = fileOf(msg)
   const text = routeText(msg.chat.type, msg.text ?? msg.caption ?? '', {
     username: env.BOT_USERNAME, botId: Number(env.BOT_TOKEN.split(':')[0]), replyToId: msg.reply_to_message?.from?.id,
   })
-  console.log(`msg chat=${msg.chat.type} from=${msg.from?.id ?? '-'} len=${(msg.text ?? msg.caption ?? '').length} accepted=${text !== null}`)
-  if (!msg.from || !text) return
+  console.log(`msg chat=${msg.chat.type} from=${msg.from?.id ?? '-'} len=${(msg.text ?? msg.caption ?? '').length} file=${file ? `${file.mime ?? '?'} ${file.size}` : '-'} accepted=${text !== null}`)
+  if (!msg.from) return
+  // файл без подписи: в личке подскажем, в группе (где нужно упоминание) молчим
+  if (file && !text && !inGroup) {
+    return tg.send(chat, 'Файл получил, но не понял, что с ним делать. Отправьте его ещё раз с подписью, например: <i>Задача: разобрать таблицу по покрытию</i>.')
+  }
+  if (!text) return
   // в группе отвечаем на конкретное сообщение, чтобы было видно, кому
   const reply = inGroup ? { replyTo: msg.message_id } : {}
 
@@ -106,6 +114,7 @@ async function onMessage(msg: TgMessage, env: Env) {
   if (text === '/help' || text.startsWith('/start')) return tg.send(chat, HELP, reply)
   if (text === '/me') return tg.send(chat, `Вы — <b>${esc(c.member.name)}</b>. ${link(env, '/settings', 'Настройки уведомлений')}`, reply)
   if (text === '/tasks') return tg.send(chat, tasksText(c, env), reply)
+  if (text === '/free') return tg.send(chat, freeText(c, env), reply)
   if (text === '/low') return tg.send(chat, lowText(c, env), reply)
   if (text === '/digest') {
     const d = await db.digest(c.member.id)
@@ -124,11 +133,19 @@ async function onMessage(msg: TgMessage, env: Env) {
     return tg.send(chat, text, { replyTo: msg.message_id })
   }
   const { intent, missing } = normalize(raw, c)
+  if (file && canAttach(intent) && !missing.length) {
+    if (file.size > TG_LIMIT) return tg.send(chat, 'Файл больше 20 МБ — Telegram не отдаёт такие боту. Загрузите его в задачу на сайте (до 25 МБ).', { replyTo: msg.message_id })
+    intent.tg_file = file
+  }
 
   if (intent.intent === 'query') return tg.send(chat, esc(intent.answer ?? 'Не нашёл ответа в данных dashboard.'), { replyTo: msg.message_id })
   if (intent.intent === 'unknown' || missing.length) {
     const ask = intent.clarification ?? (missing.length ? `Не хватает: ${missing.join(', ')}.` : 'Не понял, что сделать.')
     return tg.send(chat, `🤔 ${esc(ask)}\n\nНапишите подробнее или /help.`, { replyTo: msg.message_id })
+  }
+
+  if (file && !intent.tg_file) {
+    return tg.send(chat, '📎 Файл можно прикрепить, только когда я создаю задачу или заметку к изделию. Напишите в подписи, что это за задача.', { replyTo: msg.message_id })
   }
 
   if (needsConfirm(intent)) {
@@ -150,6 +167,17 @@ async function run(tg: Tg, db: Db, env: Env, c: Ctx, intent: Intent, chat: numbe
     const r = await db.apply(c.member.id, intent)
     const lines = describe(intent, c, esc)
     if (intent.intent === 'create_task' && r.num) lines[0] = `#${r.num} ${lines[0].replace(/^Задача /, '')}`
+    // задача уже создана — сбой файла не должен выглядеть как сбой задачи
+    const f = intent.tg_file
+    if (f) {
+      const i = lines.findIndex(l => l.startsWith('📎'))
+      try {
+        await db.attach(c, intent.intent === 'add_note' ? { product: r.id } : { task: r.id }, f, await tg.download(f.file_id))
+      } catch (e) {
+        const why = (e as Error).message
+        lines[i < 0 ? lines.length : i] = `⚠️ Файл ${esc(f.name)} не прикрепился: ${esc(/too big/i.test(why) ? 'больше 20 МБ' : why)}. Добавьте его вручную на сайте.`
+      }
+    }
     text = [`<b>${DONE_TITLE[intent.intent]}</b>`, ...lines, '', link(env, r.link)].join('\n')
   } catch (e) {
     text = `❌ Не получилось: ${esc((e as Error).message)}`
@@ -184,6 +212,27 @@ function tasksText(c: Ctx, env: Env) {
   const rows = c.my_tasks.slice(0, 15).map(t =>
     `#${t.num} ${esc(t.title)}${t.due_date ? ` — ${t.due_date < d ? '⚠️ просрочено ' : ''}${new Date(t.due_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}` : ''}`)
   return [`<b>Ваши задачи · ${c.my_tasks.length}</b>`, ...rows, '', link(env, '/tasks')].join('\n')
+}
+
+function freeText(c: Ctx, env: Env) {
+  const list = c.free_tasks ?? []
+  if (!list.length) return `Свободных задач нет 👍 ${link(env, '/tasks', 'Все задачи')}`
+  const d = today()
+  const rows = list.slice(0, 20).map(t =>
+    `#${t.num} ${esc(t.title)}${t.due_date ? ` — ${t.due_date < d ? '⚠️ просрочено ' : ''}${new Date(t.due_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}` : ''}`)
+  return [`<b>Свободные задачи · ${list.length}</b>`, ...rows, '', 'Взять задачу — кнопкой на сайте.', link(env, '/tasks?assignee=none')].join('\n')
+}
+
+const TG_LIMIT = 20 * 1024 * 1024
+
+/** Документ или самое крупное фото из сообщения. */
+function fileOf(msg: TgMessage): TgFile | null {
+  if (msg.document) {
+    const d = msg.document
+    return { file_id: d.file_id, name: d.file_name ?? 'файл', mime: d.mime_type ?? null, size: d.file_size ?? 0 }
+  }
+  const p = msg.photo?.slice().sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0))[0]
+  return p ? { file_id: p.file_id, name: `фото-${msg.message_id}.jpg`, mime: 'image/jpeg', size: p.file_size ?? 0 } : null
 }
 
 function lowText(c: Ctx, env: Env) {

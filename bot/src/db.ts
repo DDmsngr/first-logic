@@ -10,6 +10,8 @@ export interface Ctx {
   component_categories: { id: string; name: string }[]
   members: { user_id: string; name: string }[]
   my_tasks: { num: number; title: string; status: string; due_date: string | null }[]
+  free_tasks: { num: number; title: string; status: string; priority: string; due_date: string | null }[]
+  team_tasks: { num: number; title: string; status: string; due_date: string | null; assignee: string | null }[]
 }
 
 export interface Digest {
@@ -53,6 +55,30 @@ export class Db {
       return { id: intent.product_id!, link: `/products/${intent.product_id}` }
     }
     return this.rpc<{ id: string; num?: number; link: string }>('fl_bot_apply', { p_member: memberId, p_intent: intent })
+  }
+
+  /** Кладёт файл в бакет ws-files и записывает его в задачу или изделие. */
+  async attach(c: Ctx, target: { task?: string; product?: string }, file: { name: string; mime: string | null }, bytes: ArrayBuffer) {
+    const safe = file.name.replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(-120) || 'file'
+    const path = `${c.member.workspace_id}/${c.member.user_id}/${crypto.randomUUID()}-${safe}`
+    const up = await fetch(`${this.url}/storage/v1/object/ws-files/${path.split('/').map(encodeURIComponent).join('/')}`, {
+      method: 'POST',
+      headers: { apikey: this.key, Authorization: `Bearer ${this.key}`, 'Content-Type': file.mime ?? 'application/octet-stream' },
+      body: bytes,
+    })
+    if (!up.ok) throw new Error(`хранилище: ${((await up.json().catch(() => ({}))) as { message?: string }).message ?? up.status}`)
+    try {
+      await this.rpc('fl_bot_attach', {
+        p_member: c.member.id, p_task: target.task ?? null, p_product: target.product ?? null,
+        p_path: path, p_filename: file.name, p_mime: file.mime, p_size: bytes.byteLength,
+      })
+    } catch (e) {
+      // запись не создалась — не оставляем файл-сироту
+      await fetch(`${this.url}/storage/v1/object/ws-files/${path.split('/').map(encodeURIComponent).join('/')}`, {
+        method: 'DELETE', headers: { apikey: this.key, Authorization: `Bearer ${this.key}` },
+      }).catch(() => undefined)
+      throw e
+    }
   }
 
   async savePending(p: { member_id: string; chat_id: number; source_text: string; intent: Intent }) {
