@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createCosting } from '../src/costing.ts'
+import { createCosting, currencyShare, scaleRate } from '../src/costing.ts'
 
 const rates = [{ currency: 'USD', cbr_rate: 80, cbr_date: null, fetched_at: null, manual_rate: null, updated_at: '' }]
 const C = (id, price, currency = 'RUB', stock = 0) => ({ id, name: id, price, currency, unit: 'шт', stock })
@@ -77,4 +77,19 @@ test('где используется и запрет на вложение в �
   const k = createCosting(data())
   assert.equal(k.usedIn({ componentId: 'SMA' }).length, 2)
   assert.deepEqual([...k.ancestors('PSU')].sort(), ['PA', 'PSU'])
+})
+
+
+test('доля материалов по валютам', () => {
+  const share = currencyShare(data(), { productId: 'AMP' })
+  // T: 1 шт × $5 × 80 = 400 (через PA→PSU); RUB: R 20 + SMA 1200 + CASE 2000 + SMA 600 = 3820
+  assert.equal(share.get('USD'), 400)
+  assert.equal(share.get('RUB'), 3820)
+})
+
+test('если доллар +10% — материалы дорожают только на долларовую часть', () => {
+  const d = data()
+  const base = createCosting(d).product('AMP').total
+  const up = createCosting({ ...d, rates: scaleRate(d.rates, 'USD', 10) }).product('AMP').total
+  assert.equal(Math.round(up - base), 40)
 })

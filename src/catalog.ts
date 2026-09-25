@@ -2,6 +2,7 @@
 import { supabase } from './supabase'
 import type { Currency, Rate } from './money'
 import type { BomItem } from './costing'
+import type { TestParam } from './quality'
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message)
@@ -169,6 +170,11 @@ export async function fetchComponents(workspaceId: string, opts: { archived?: bo
   return (check(await q) as Component[]).map(num)
 }
 
+export async function fetchComponentsByIds(ids: string[]) {
+  if (!ids.length) return []
+  return (check(await supabase.from('fl_components').select('*').in('id', ids).order('name')) as Component[]).map(num)
+}
+
 export async function fetchComponent(id: string) {
   const c = check(await supabase.from('fl_components').select('*').eq('id', id).maybeSingle()) as Component | null
   return c ? num(c) : null
@@ -176,6 +182,21 @@ export async function fetchComponent(id: string) {
 
 export async function createComponent(workspaceId: string, c: ComponentInput) {
   return num(check(await supabase.from('fl_components').insert({ workspace_id: workspaceId, ...c }).select().single()) as Component)
+}
+
+/** Одинаковые изменения у многих компонентов одним запросом. */
+export async function updateComponentsBulk(ids: string[], patch: Partial<ComponentInput & { archived_at: string | null }>) {
+  if (!ids.length) return 0
+  const rows = check(await supabase.from('fl_components').update(patch).in('id', ids).select('id')) as unknown[]
+  return rows.length
+}
+
+/** Как createComponentsBulk, но возвращает id в том же порядке. */
+export async function createComponentsReturning(workspaceId: string, items: ComponentInput[]) {
+  if (!items.length) return []
+  const rows = check(await supabase.from('fl_components').insert(items.map(i => ({ workspace_id: workspaceId, ...i }))).select('id, name')) as { id: string; name: string }[]
+  // PostgREST возвращает строки в порядке вставки; сверяем по названию на всякий случай
+  return items.map((it, k) => rows[k]?.name === it.name ? rows[k] : rows.find(r => r.name === it.name) ?? rows[k])
 }
 
 /** Все компоненты одним запросом: либо все, либо ни одного. */
@@ -225,6 +246,7 @@ export interface Product {
   overhead_pct: number
   cost_override: number | null
   planned_qty: number
+  test_params: TestParam[]
   created_at: string
   updated_at: string
   archived_at: string | null
@@ -238,6 +260,7 @@ const prod = (p: Product): Product => ({
   ...p, planned_price: numOrNull(p.planned_price), actual_price: numOrNull(p.actual_price),
   manufacturing_cost: Number(p.manufacturing_cost ?? 0), additional_cost: Number(p.additional_cost ?? 0),
   overhead_pct: Number(p.overhead_pct ?? 0), cost_override: numOrNull(p.cost_override ?? null), planned_qty: Number(p.planned_qty ?? 0),
+  test_params: Array.isArray(p.test_params) ? p.test_params : [],
 })
 
 export async function fetchProducts(workspaceId: string, archived = false) {
@@ -255,7 +278,7 @@ export async function createProduct(workspaceId: string, p: ProductInput) {
   return prod(check(await supabase.from('fl_products').insert({ workspace_id: workspaceId, ...p }).select().single()) as Product)
 }
 
-export type ProductCostPatch = Partial<Pick<Product, 'manufacturing_cost' | 'additional_cost' | 'overhead_pct' | 'cost_override' | 'planned_qty'>>
+export type ProductCostPatch = Partial<Pick<Product, 'manufacturing_cost' | 'additional_cost' | 'overhead_pct' | 'cost_override' | 'planned_qty' | 'test_params'>>
 
 export async function updateProduct(id: string, patch: Partial<ProductInput & { archived_at: string | null }> & ProductCostPatch) {
   one(check(await supabase.from('fl_products').update(patch).eq('id', id).select('id')), 'Изделие')
@@ -337,6 +360,14 @@ export async function addBomItem(workspaceId: string, it: NewBomItem) {
   const res = await supabase.from('fl_bom_items').insert({ workspace_id: workspaceId, ...it }).select().single()
   if (res.error?.code === '23505') throw new Error('Эта позиция уже есть в составе — измените количество в строке')
   return bom(check(res) as BomItem)
+}
+
+/** Много строк состава одним запросом (загрузка из файла). */
+export async function addBomItemsBulk(workspaceId: string, items: (NewBomItem & { note?: string })[]) {
+  if (!items.length) return 0
+  const res = await supabase.from('fl_bom_items').insert(items.map(i => ({ workspace_id: workspaceId, ...i }))).select('id')
+  if (res.error?.code === '23505') throw new Error('Часть позиций уже есть в составе — обновите страницу и попробуйте снова')
+  return (check(res) as unknown[]).length
 }
 
 export type BomPatch = Partial<Pick<BomItem, 'qty' | 'price_override' | 'price_currency' | 'note' | 'position'>>

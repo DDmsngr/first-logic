@@ -1,7 +1,9 @@
+import { PriceHistory } from '../currencyRisk'
+import { OffersPanel } from '../offers'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Archive, ArchiveRestore, ArrowLeft, ExternalLink, Minus, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowLeft, ExternalLink, Minus, Pencil, Plus, QrCode, Trash2 } from 'lucide-react'
 import { deleteComponent, fetchComponent, needsReorder, updateComponent, type ComponentInput } from '../catalog'
 import { fetchAttachments } from '../api'
 import { ComponentForm, ComponentStatusChip, DictChip, Price, Stock, useDicts, useRates, useSuppliers } from '../catalogParts'
@@ -66,7 +68,10 @@ export default function ComponentDetail() {
           {c.sku && <span className="dash-mono text-xs">{c.sku}</span>}
           {c.manufacturer && <span className="text-xs">{c.manufacturer}</span>}
         </span>}
-        actions={!editing && <button className="dash-btn dash-btn-ghost" onClick={() => setEditing(true)}><Pencil className="h-4 w-4" aria-hidden /> Редактировать</button>} />
+        actions={!editing && <>
+          <Link className="dash-btn dash-btn-ghost" to={`/components/labels?ids=${c.id}`}><QrCode className="h-4 w-4" aria-hidden /> Этикетка</Link>
+          <button className="dash-btn dash-btn-ghost" onClick={() => setEditing(true)}><Pencil className="h-4 w-4" aria-hidden /> Редактировать</button>
+        </>} />
 
       <div className="mb-4 grid gap-3 md:grid-cols-3">
         <section className="dash-card p-4" aria-label="Склад">
@@ -119,6 +124,16 @@ export default function ComponentDetail() {
           <p className="whitespace-pre-wrap text-sm">{c.notes}</p>
         </section>
       )}
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="Поставщики и цены">
+        <h2 className="dash-label mb-2">Поставщики и цены</h2>
+        <OffersPanel c={c} />
+      </section>
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="История цены">
+        <h2 className="dash-label mb-2">История цены</h2>
+        <PriceHistory componentId={c.id} />
+      </section>
 
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Где используется">
         <h2 className="dash-label mb-2">Где используется</h2>

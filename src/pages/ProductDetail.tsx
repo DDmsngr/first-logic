@@ -1,7 +1,9 @@
+import { TestsPanel } from '../qualityUi'
+import { BuildPanel } from '../builds'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Archive, ArchiveRestore, ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowLeft, FileText, Pencil, Plus, Trash2 } from 'lucide-react'
 import { deleteProduct, fetchProduct, sellingPrice, updateProduct, type ProductInput } from '../catalog'
 import { fetchAttachments, fetchTasks } from '../api'
 import { useWorkspace } from '../auth'
@@ -82,6 +84,7 @@ export default function ProductDetail() {
             <option value="">Без статуса</option>
             {statuses.data?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
+          <Link to={`/products/${p.id}/offer`} className="dash-btn dash-btn-ghost"><FileText className="h-4 w-4" aria-hidden /> КП</Link>
           {!editing && <button className="dash-btn dash-btn-ghost" onClick={() => setEditing(true)}><Pencil className="h-4 w-4" aria-hidden /> Редактировать</button>}
         </>} />
 
@@ -147,6 +150,16 @@ export default function ProductDetail() {
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Потребность на партию">
         <h2 className="dash-label mb-3">Потребность в компонентах на партию</h2>
         <BatchNeeds parent={{ productId: p.id }} title={`${p.name}${p.version ? ' ' + p.version : ''}`} />
+      </section>
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="Сборка">
+        <h2 className="dash-label mb-3">Сборка — списание со склада</h2>
+        <BuildPanel target={{ productId: p.id }} />
+      </section>
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="Испытания">
+        <h2 className="dash-label mb-3">Испытания</h2>
+        <TestsPanel product={p} />
       </section>
 
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Задачи изделия">

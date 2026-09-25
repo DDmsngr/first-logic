@@ -1,3 +1,4 @@
+import { BuildPanel } from '../builds'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -96,6 +97,11 @@ export default function AssemblyDetail() {
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Потребность на партию">
         <h2 className="dash-label mb-3">Потребность в компонентах</h2>
         <BatchNeeds parent={{ assemblyId: a.id }} title={a.name} />
+      </section>
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="Сборка">
+        <h2 className="dash-label mb-3">Сборка узла — списание со склада</h2>
+        <BuildPanel target={{ assemblyId: a.id }} />
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">

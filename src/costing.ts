@@ -221,3 +221,41 @@ export function unitEconomics(material: number, p: CostParams, priceRub: number 
     markup: profit === null || !total ? null : (profit / total) * 100,
   }
 }
+
+// ── чувствительность к курсу ────────────────────────────────────────────────
+
+/** Курсы, где одна валюта подорожала на pct процентов (ручной курс тоже). */
+export function scaleRate(rates: Rate[], currency: Currency, pct: number): Rate[] {
+  const k = 1 + pct / 100
+  return rates.map(r => (r.currency === currency
+    ? { ...r, cbr_rate: r.cbr_rate === null ? null : r.cbr_rate * k, manual_rate: r.manual_rate === null ? null : r.manual_rate * k }
+    : r))
+}
+
+/**
+ * Сколько рублей материалов изделия приходится на каждую валюту закупки.
+ * Узел с ручной ценой считается рублёвым: его цену задали в рублях.
+ */
+export function currencyShare(d: CostData, parent: { productId?: string; assemblyId?: string }): Map<Currency, number> {
+  const out = new Map<Currency, number>()
+  const comp = new Map(d.components.map(c => [c.id, c]))
+  const asm = new Map(d.assemblies.map(a => [a.id, a]))
+  const add = (cur: Currency, rub: number | null) => { if (rub) out.set(cur, (out.get(cur) ?? 0) + rub) }
+  const walk = (items: BomItem[], mult: number, path: Set<string>) => {
+    for (const it of items) {
+      const q = it.qty * mult
+      if (it.price_override !== null) { add(it.price_currency, (toRub(it.price_override, it.price_currency, d.rates) ?? 0) * q); continue }
+      if (it.component_id) {
+        const c = comp.get(it.component_id)
+        if (c) add(c.currency, (toRub(c.price, c.currency, d.rates) ?? 0) * q)
+      } else if (it.child_assembly_id && !path.has(it.child_assembly_id)) {
+        const a = asm.get(it.child_assembly_id)
+        if (a?.cost_override !== null && a?.cost_override !== undefined) { add('RUB', a.cost_override * q); continue }
+        walk(d.items.filter(x => x.parent_assembly_id === it.child_assembly_id), q, new Set([...path, it.child_assembly_id]))
+      }
+    }
+  }
+  const top = d.items.filter(x => (parent.productId ? x.parent_product_id === parent.productId : x.parent_assembly_id === parent.assemblyId))
+  walk(top, 1, new Set(parent.assemblyId ? [parent.assemblyId] : []))
+  return out
+}

@@ -121,6 +121,15 @@
   .dash-md hr { border: 0; border-top: 1px solid var(--d-line); margin: 0.6em 0; }
 
   .dash-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+  /* печать (КП, этикетки): белая бумага вместо тёмной сетки */
+  @media print {
+    @page { size: A4; margin: 14mm; }
+    :root { color-scheme: light !important; }
+    .dash { background: #fff !important; color: #16202a; min-height: 0; }
+    html, body { background: #fff !important; }
+    .offer-sheet { width: 100% !important; max-width: 100% !important; }
+  }
   .dash-safe-top { padding-top: env(safe-area-inset-top); }
 
   @media (prefers-reduced-motion: reduce) {

@@ -5,7 +5,7 @@ import type { Ctx } from './db'
 
 export const INTENTS = [
   'create_task', 'update_task', 'create_expense', 'stock_in', 'stock_out', 'create_component',
-  'create_product', 'create_assembly', 'add_note', 'query', 'unknown',
+  'create_product', 'create_assembly', 'add_note', 'build', 'query', 'unknown',
 ] as const
 export type IntentKind = (typeof INTENTS)[number]
 
@@ -65,6 +65,7 @@ export function normalize(raw: Record<string, unknown>, ctx: Ctx): { intent: Int
     case 'create_component': need(i.name, 'название компонента'); break
     case 'create_product': case 'create_assembly': need(i.name, 'название'); break
     case 'add_note': need(i.product_id, 'изделие'); need(i.text, 'текст заметки'); break
+    case 'build': need(i.product_id, 'изделие из справочника'); need(i.qty && i.qty > 0, 'сколько собрали'); break
   }
   if (i.amount !== undefined && !i.currency) i.currency = 'RUB'
   if (i.price !== undefined && !i.currency) i.currency = 'RUB'
@@ -76,7 +77,7 @@ export function normalize(raw: Record<string, unknown>, ctx: Ctx): { intent: Int
  * Задачи и заметки — сразу, если модель уверена.
  */
 export function needsConfirm(i: Intent) {
-  if (['create_expense', 'stock_in', 'stock_out', 'create_component', 'create_product', 'create_assembly'].includes(i.intent)) return true
+  if (['create_expense', 'stock_in', 'stock_out', 'create_component', 'create_product', 'create_assembly', 'build'].includes(i.intent)) return true
   return (i.confidence ?? 0) < 0.75
 }
 
@@ -128,8 +129,9 @@ export function describe(i: Intent, ctx: Ctx, esc: (s: string) => string): strin
     case 'create_product': out.push(`Новое изделие ${q(i.name!)}${i.version ? ` ${esc(i.version)}` : ''}`); break
     case 'create_assembly': out.push(`Новый узел ${q(i.name!)}`); break
     case 'add_note': out.push(`Заметка в изделие ${q(product!.name)}:`, esc(i.text!)); break
+    case 'build': out.push(`Собрали ${q(product!.name)}${product!.version ? ` ${esc(product!.version)}` : ''} × ${i.qty}`, 'Компоненты по составу спишутся со склада'); break
   }
-  if (product && i.intent !== 'add_note') out.push(`Изделие: ${esc(product.name)}${product.version ? ` ${esc(product.version)}` : ''}`)
+  if (product && i.intent !== 'add_note' && i.intent !== 'build') out.push(`Изделие: ${esc(product.name)}${product.version ? ` ${esc(product.version)}` : ''}`)
   return out
 }
 
@@ -137,10 +139,12 @@ export const DONE_TITLE: Partial<Record<IntentKind, string>> = {
   create_task: '✅ Создал задачу', update_task: '✅ Обновил задачу', create_expense: '✅ Записал расход',
   stock_in: '✅ Оприходовал', stock_out: '✅ Списал со склада', create_component: '✅ Добавил компонент',
   create_product: '✅ Добавил изделие', create_assembly: '✅ Добавил узел', add_note: '✅ Добавил заметку',
+  build: '✅ Списал со склада',
 }
 
 export const ASK_TITLE: Partial<Record<IntentKind, string>> = {
   create_task: 'Создать задачу?', update_task: 'Обновить задачу?', create_expense: 'Записать расход?',
   stock_in: 'Оприходовать?', stock_out: 'Списать со склада?', create_component: 'Добавить компонент?',
   create_product: 'Добавить изделие?', create_assembly: 'Добавить узел?', add_note: 'Добавить заметку?',
+  build: 'Списать по сборке?',
 }

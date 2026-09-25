@@ -99,6 +99,12 @@ export function WorkspaceProvider({ session, children }: { session: Session; chi
     on('fl_assemblies', ['assemblies', 'assembly', 'activity'])
     on('fl_bom_items', ['bom', 'activity'])
     on('fl_expenses', ['expenses', 'activity'])
+    on('fl_builds', ['builds', 'components', 'activity'])
+    on('fl_purchase_orders', ['orders', 'order', 'components', 'activity'])
+    on('fl_purchase_order_items', ['orders', 'order'])
+    on('fl_component_offers', ['offers'])
+    on('fl_tests', ['tests', 'activity'])
+    on('fl_bom_revisions', ['revisions'])
     ch.subscribe()
     return () => { void supabase.removeChannel(ch) }
   }, [wsId, qc])

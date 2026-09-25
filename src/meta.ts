@@ -105,7 +105,18 @@ export function describeActivity(e: ActivityEvent, byUser: (id: string | null) =
     case 'member.joined': return `${m.name ?? who} присоединился(лась) к команде`
     case 'component.created': return `${who} добавил(а) компонент «${m.title}»`
     case 'component.price': return `${who} изменил(а) цену «${m.title}»: ${fmtNum(m.from)} → ${fmtNum(m.to)}`
-    case 'component.stock': return `${who} изменил(а) остаток «${m.title}»: ${fmtNum(m.from)} → ${fmtNum(m.to)} ${m.unit ?? ''}`.trimEnd()
+    case 'component.stock': return `${m.reason ? `${m.reason}: ` : `${who} изменил(а) `}остаток «${m.title}» ${fmtNum(m.from)} → ${fmtNum(m.to)} ${m.unit ?? ''}`.trimEnd()
+    case 'test.pass': return `${who} записал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}: годен`
+    case 'test.fail': return `${who} записал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}: брак`
+    case 'test.pending': return `${who} начал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}`
+    case 'bom.revision': return `${who} зафиксировал(а) ревизию состава «${m.title}»: ${m.to}`
+    case 'build.done': return `${who} собрал(а) «${m.title}» × ${fmtNum(m.to)} — списано ${m.lines ?? ''} поз.`
+    case 'build.reverted': return `${who} отменил(а) сборку «${m.title}» × ${fmtNum(m.to)}, компоненты вернулись на склад`
+    case 'order.created': return `${who} создал(а) ${m.title}${m.supplier ? ` (${m.supplier})` : ''}, позиций: ${m.lines ?? ''}`
+    case 'order.ordered': return `${who} отправил(а) ${m.title}${m.supplier ? ` поставщику ${m.supplier}` : ''}`
+    case 'order.received': return `${who} принял(а) ${m.title}${m.supplier ? ` (${m.supplier})` : ''}: ${m.lines ?? ''} поз. на склад`
+    case 'order.cancelled': return `${who} отменил(а) ${m.title}`
+    case 'order.draft': return `${who} вернул(а) в черновик ${m.title}`
     case 'component.archived': return `${who} убрал(а) в архив компонент «${m.title}»`
     case 'component.restored': return `${who} вернул(а) из архива компонент «${m.title}»`
     case 'product.created': return `${who} добавил(а) изделие «${m.title}»`

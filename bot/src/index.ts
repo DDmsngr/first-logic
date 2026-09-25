@@ -2,7 +2,7 @@
 // Сообщение → разбор (Gemini) → команда → база dashboard → ответ с подтверждением.
 // Обратно: очередь fl_outbox (её наполняют триггеры базы) → уведомления раз в минуту.
 
-import { Db, type Ctx } from './db'
+import { Db, type Ctx, type Digest } from './db'
 import { ASK_TITLE, DONE_TITLE, describe, needsConfirm, normalize, type Intent } from './intents'
 import { LimitError, parseMessage } from './parse'
 import { isGroupChat, routeText } from './route'
@@ -26,9 +26,10 @@ const HELP = `Я — вход в dashboard First Logic. Пишите обычн�
 • <i>#12 готово</i> — статус задачи
 • <i>Потратил 8500 на корпуса для 200W</i> — расход (спрошу подтверждение)
 • <i>Добавь 5 шт BLF188XR по 3200</i> — приход на склад (спрошу подтверждение)
+• <i>Собрал 3 сотки</i> — списать детали по составу (спрошу подтверждение)
 • <i>Сколько осталось SMA?</i> — вопрос по данным
 
-Команды: /tasks — мои задачи, /low — что пора заказать, /me — чей аккаунт.
+Команды: /tasks — мои задачи, /low — что пора заказать, /digest — сводка на сегодня, /me — чей аккаунт.
 
 В группе начинайте сообщение с @first_logic_bot или отвечайте на мои сообщения — иначе я молчу.`
 
@@ -56,7 +57,11 @@ export default {
 
   async scheduled(_ev: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(flushOutbox(env))
-    if (new Date().getUTCMinutes() === 0) ctx.waitUntil(new Db(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY).syncOverdue().then(() => undefined))
+    const now = new Date()
+    if (now.getUTCMinutes() === 0) ctx.waitUntil(new Db(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY).syncOverdue().then(() => undefined))
+    // 06:00 UTC = 09:00 МСК; по выходным не беспокоим
+    const day = now.getUTCDay()
+    if (now.getUTCHours() === 6 && now.getUTCMinutes() === 0 && day !== 0 && day !== 6) ctx.waitUntil(sendDigests(env))
   },
 }
 
@@ -102,6 +107,10 @@ async function onMessage(msg: TgMessage, env: Env) {
   if (text === '/me') return tg.send(chat, `Вы — <b>${esc(c.member.name)}</b>. ${link(env, '/settings', 'Настройки уведомлений')}`, reply)
   if (text === '/tasks') return tg.send(chat, tasksText(c, env), reply)
   if (text === '/low') return tg.send(chat, lowText(c, env), reply)
+  if (text === '/digest') {
+    const d = await db.digest(c.member.id)
+    return tg.send(chat, d ? digestText(d, env) : 'Сводка недоступна', reply)
+  }
 
   await tg.typing(chat)
   let raw: Record<string, unknown>
@@ -194,6 +203,32 @@ async function flushOutbox(env: Env) {
       await db.outboxDone(n.id, null)
     } catch (e) {
       await db.outboxDone(n.id, (e as Error).message.slice(0, 300))
+    }
+  }
+}
+
+function digestText(d: Digest, env: Env) {
+  const date = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+  const out = [`<b>Доброе утро, ${esc(d.name.split(' ')[0])}!</b>`]
+  if (d.overdue.length) out.push('', `⚠️ <b>Просрочено · ${d.overdue.length}</b>`, ...d.overdue.slice(0, 8).map(t => `#${t.num} ${esc(t.title)} — с ${date(t.due_date)}`))
+  if (d.due_today.length) out.push('', `📌 <b>Сегодня срок · ${d.due_today.length}</b>`, ...d.due_today.slice(0, 8).map(t => `#${t.num} ${esc(t.title)}`))
+  out.push('', `В работе у вас: ${d.in_progress}${d.free ? ` · свободных задач: ${d.free}` : ''}`)
+  if (d.orders_due.length) out.push('', `🚚 <b>Ждём поставки · ${d.orders_due.length}</b>`, ...d.orders_due.map(o => `Заказ №${o.num}${o.supplier ? ` (${esc(o.supplier)})` : ''} — к ${date(o.expected_on)}`))
+  if (d.low.length) out.push('', `📦 <b>Пора заказать · ${d.low.length}</b>`, ...d.low.slice(0, 10).map(x => `• ${esc(x.name)} — ${x.stock} ${esc(x.unit)} (мин. ${x.min})`))
+  out.push('', link(env, '/', 'Открыть dashboard'))
+  return out.join('\n')
+}
+
+async function sendDigests(env: Env) {
+  const tg = new Tg(env.BOT_TOKEN)
+  const db = new Db(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY)
+  for (const t of await db.digestTargets()) {
+    try {
+      const d = await db.digest(t.member_id)
+      // пустую сводку не шлём: нечего сказать — не отвлекаем
+      if (d && (d.overdue.length || d.due_today.length || d.low.length || d.orders_due.length)) await tg.send(t.chat_id, digestText(d, env))
+    } catch (e) {
+      console.error('digest failed:', (e as Error).message)
     }
   }
 }

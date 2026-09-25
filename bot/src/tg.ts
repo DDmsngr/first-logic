@@ -61,6 +61,7 @@ export class Tg {
         { command: 'help', description: 'Что я умею' },
         { command: 'tasks', description: 'Мои открытые задачи' },
         { command: 'low', description: 'Что пора заказать' },
+        { command: 'digest', description: 'Сводка на сегодня' },
         { command: 'me', description: 'Чей это аккаунт' },
       ],
     })

@@ -1,8 +1,9 @@
+import { BulkEditComponents } from '../bulkComponents'
 import ComponentsIO, { OrderFromList } from '../ComponentsIO'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, ArrowUpDown, Plus, Tags } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Plus, QrCode, Tags } from 'lucide-react'
 import { createComponent, fetchComponents, needsReorder, COMPONENT_STATUSES, type Component } from '../catalog'
 import { useWorkspace } from '../auth'
 import {
@@ -23,6 +24,7 @@ export default function Components() {
   const [creating, setCreating] = useState(false)
   const [cats, setCats] = useState(false)
   const [sel, setSel] = useState<Set<string>>(() => new Set())
+  const [bulk, setBulk] = useState(false)
 
   const archived = sp.get('archived') === '1'
   const list = useQuery({ queryKey: ['components', workspace.id, { archived }], queryFn: () => fetchComponents(workspace.id, { archived }) })
@@ -177,8 +179,10 @@ export default function Components() {
         <div role="status" className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-[var(--d-accent)] bg-[var(--d-raised)] px-3 py-2 text-sm">
           <b>Выбрано: {selected.length}</b>
           {selected.length > shownSelected && <span className="dash-muted">(из них {selected.length - shownSelected} скрыто фильтрами)</span>}
-          <span className="dash-muted">Кнопка «Выгрузить выбранные» сверху возьмёт только их.</span>
-          <button className="dash-btn dash-btn-ghost dash-btn-sm ml-auto" onClick={() => setSel(new Set())}>Снять выбор</button>
+          <span className="dash-muted">«Выгрузить выбранные» сверху возьмёт только их.</span>
+          <button className="dash-btn dash-btn-sm ml-auto" onClick={() => setBulk(true)}>Изменить выбранные…</button>
+          <Link className="dash-btn dash-btn-ghost dash-btn-sm" to={`/components/labels?ids=${selected.map(c => c.id).join(',')}`}><QrCode className="h-4 w-4" aria-hidden /> Этикетки</Link>
+          <button className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => setSel(new Set())}>Снять выбор</button>
         </div>
       )}
 
@@ -270,6 +274,7 @@ export default function Components() {
         {creating && <ComponentForm initial={EMPTY_COMPONENT} submitLabel="Добавить" busy={create.isPending}
           onSubmit={c => create.mutate(c)} onCancel={() => setCreating(false)} />}
       </Modal>
+      {bulk && <BulkEditComponents ids={selected.map(c => c.id)} onClose={() => setBulk(false)} onDone={() => setSel(new Set())} />}
       <DictEditor kind="component_category" title="Категории компонентов" open={cats} onClose={() => setCats(false)}
         usage={id => all.filter(c => c.category_id === id).length} />
     </>
