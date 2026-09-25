@@ -80,11 +80,14 @@ async function onMessage(msg: TgMessage, env: Env) {
   const chat = msg.chat.id
   const inGroup = isGroupChat(msg.chat.type)
   const file = fileOf(msg)
+  const attachTo = file ? attachTarget(msg, env) : null
   const text = routeText(msg.chat.type, msg.text ?? msg.caption ?? '', {
     username: env.BOT_USERNAME, botId: Number(env.BOT_TOKEN.split(':')[0]), replyToId: msg.reply_to_message?.from?.id,
   })
   console.log(`msg chat=${msg.chat.type} from=${msg.from?.id ?? '-'} len=${(msg.text ?? msg.caption ?? '').length} file=${file ? `${file.mime ?? '?'} ${file.size}` : '-'} accepted=${text !== null}`)
   if (!msg.from) return
+  // файл ответом на сообщение бота с ссылкой на задачу/изделие — прикрепляем без разбора
+  if (file && attachTo) return attachReply(tg, db, env, msg, file, attachTo)
   // файл без подписи: в личке подскажем, в группе (где нужно упоминание) молчим
   if (file && !text && !inGroup) {
     return tg.send(chat, 'Файл получил, но не понял, что с ним делать. Отправьте его ещё раз с подписью, например: <i>Задача: разобрать таблицу по покрытию</i>.')
@@ -178,6 +181,7 @@ async function run(tg: Tg, db: Db, env: Env, c: Ctx, intent: Intent, chat: numbe
         lines[i < 0 ? lines.length : i] = `⚠️ Файл ${esc(f.name)} не прикрепился: ${esc(/too big/i.test(why) ? 'больше 20 МБ' : why)}. Добавьте его вручную на сайте.`
       }
     }
+    if (intent.intent === 'create_task' && !f) lines.push('', '📎 Нужен файл — ответьте на это сообщение файлом.')
     text = [`<b>${DONE_TITLE[intent.intent]}</b>`, ...lines, '', link(env, r.link)].join('\n')
   } catch (e) {
     text = `❌ Не получилось: ${esc((e as Error).message)}`
@@ -212,6 +216,33 @@ function tasksText(c: Ctx, env: Env) {
   const rows = c.my_tasks.slice(0, 15).map(t =>
     `#${t.num} ${esc(t.title)}${t.due_date ? ` — ${t.due_date < d ? '⚠️ просрочено ' : ''}${new Date(t.due_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}` : ''}`)
   return [`<b>Ваши задачи · ${c.my_tasks.length}</b>`, ...rows, '', link(env, '/tasks')].join('\n')
+}
+
+/** Задача или изделие, на чьё сообщение бота ответили файлом: берём id из ссылки в этом сообщении. */
+function attachTarget(msg: TgMessage, env: Env): { kind: 'task' | 'product'; id: string } | null {
+  const r = msg.reply_to_message
+  if (!r || r.from?.id !== Number(env.BOT_TOKEN.split(':')[0])) return null
+  const re = new RegExp(`${env.DASHBOARD_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/(tasks|products)/([0-9a-f-]{36})`)
+  for (const e of r.entities ?? []) {
+    const m = e.url?.match(re)
+    if (m) return { kind: m[1] === 'tasks' ? 'task' : 'product', id: m[2] }
+  }
+  return null
+}
+
+async function attachReply(tg: Tg, db: Db, env: Env, msg: TgMessage, file: TgFile, t: { kind: 'task' | 'product'; id: string }) {
+  const chat = msg.chat.id
+  const reply = { replyTo: msg.message_id }
+  const c = await db.context(msg.from!.id)
+  if (!c) return tg.send(chat, 'Этот Telegram ещё не привязан к dashboard.', reply)
+  if (file.size > TG_LIMIT) return tg.send(chat, 'Файл больше 20 МБ — Telegram не отдаёт такие боту. Загрузите его на сайте (до 25 МБ).', reply)
+  try {
+    await db.attach(c, t.kind === 'task' ? { task: t.id } : { product: t.id }, file, await tg.download(file.file_id))
+    return tg.send(chat, `📎 Прикрепил ${esc(file.name)}\n${link(env, `/${t.kind === 'task' ? 'tasks' : 'products'}/${t.id}`)}`, reply)
+  } catch (e) {
+    const why = (e as Error).message
+    return tg.send(chat, `❌ Файл не прикрепился: ${esc(/too big/i.test(why) ? 'больше 20 МБ' : why)}`, reply)
+  }
 }
 
 function freeText(c: Ctx, env: Env) {

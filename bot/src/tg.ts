@@ -7,6 +7,7 @@ export interface TgMessage {
   from?: TgUser
   text?: string
   caption?: string
+  entities?: { type: string; url?: string }[]
   reply_to_message?: TgMessage
   document?: { file_id: string; file_name?: string; mime_type?: string; file_size?: number }
   photo?: { file_id: string; file_size?: number; width: number; height: number }[]

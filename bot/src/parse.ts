@@ -55,7 +55,8 @@ const RULES = `Ты — разборщик команд для рабочего 
 
 Правила:
 - id бери ТОЛЬКО из контекста. Изделие «100W», «сотка», «200-ватный» — найди по названию/версии/артикулу; не уверен — оставь пусто.
-- Относительные даты («завтра», «в пятницу», «до конца месяца») переводи в YYYY-MM-DD от сегодняшней даты.
+- «Я», «мне», «на меня», «ответственный я», «беру себе» — исполнитель это автор сообщения: assignee_user_id = me_user_id. Другого человека ищи в members по имени.
+- Относительные даты («завтра», «до завтра», «в пятницу», «до конца месяца») переводи в YYYY-MM-DD от сегодняшней даты и клади в due_date — это срок задачи.
 - Приоритет: «срочно» — high, «очень срочно/горит» — critical, иначе normal.
 - Суммы: «8500», «8,5к» = 8500, «3200 рублей» = RUB, «$150» = USD, «юаней» = CNY. Рубли по умолчанию.
 - Категорию расхода подбери из expense_categories по смыслу (изготовление корпусов → Производство).
@@ -80,7 +81,7 @@ function retryAfterMs(text: string): number | null {
  */
 export async function parseMessage(text: string, ctx: Ctx, today: string, apiKey: string, models: string) {
   const context = {
-    today, me: ctx.member.name,
+    today, me: ctx.member.name, me_user_id: ctx.member.user_id,
     products: ctx.products, components: ctx.components.map(c => ({ id: c.id, name: c.name, sku: c.sku, unit: c.unit, stock: c.stock, price: c.price, currency: c.currency })),
     suppliers: ctx.suppliers, expense_categories: ctx.expense_categories, component_categories: ctx.component_categories,
     members: ctx.members, my_open_tasks: ctx.my_tasks, free_tasks: ctx.free_tasks ?? [], team_open_tasks: ctx.team_tasks ?? [],
@@ -112,7 +113,7 @@ ${text.slice(0, 2000)}
       if (r.ok) {
         const j = await r.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
         const raw = j.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? ''
-        console.log(`gemini ok model=${model} pass=${pass}`)
+        console.log(`gemini ok model=${model} pass=${pass} raw=${raw.slice(0, 500)}`)
         return JSON.parse(raw) as Record<string, unknown>
       }
       const err = await r.text()
