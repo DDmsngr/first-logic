@@ -33,6 +33,7 @@ const SCHEMA = {
     text: S('текст заметки'),
     answer: S('для query: короткий ответ по данным контекста'),
     clarification: S('для unknown или сомнений: что уточнить у пользователя'),
+    transcript: S('только для голосового сообщения: дословная расшифровка речи'),
   },
   required: ['intent', 'confidence'],
 }
@@ -62,6 +63,7 @@ const RULES = `Ты — разборщик команд для рабочего 
 - Суммы: «8500», «8,5к» = 8500, «3200 рублей» = RUB, «$150» = USD, «юаней» = CNY. Рубли по умолчанию.
 - Категорию расхода подбери из expense_categories по смыслу (изготовление корпусов → Производство).
 - «Свободные», «ничьи», «неназначенные» задачи — это free_tasks (задачи без исполнителя); «мои» — my_open_tasks; «у Ивана», «кто чем занят» — team_open_tasks. Перечисли их с номерами: «#5 Название». Если список пуст — так и скажи.
+- Если сообщение голосовое (приложено аудио), расшифруй речь дословно в transcript и разбери её так же, как текст. Не разобрал речь — transcript пусто, intent unknown.
 - confidence ниже 0.6, если сомневаешься в типе команды или в том, к какому изделию/компоненту она относится.`
 
 export class LimitError extends Error {}
@@ -74,30 +76,40 @@ function retryAfterMs(text: string): number | null {
   return m ? Math.ceil(Number(m[1]) * 1000) : null
 }
 
-/**
- * Пробует модели по порядку (GEMINI_MODEL — список через запятую). Лимит (429):
- * если ждать до 15 секунд — ждёт и повторяет ту же модель один раз, иначе идёт
- * к следующей. Сбой Google (5xx) — один повтор, затем следующая. Модель не
- * найдена (404) — сразу к следующей.
- */
-export async function parseMessage(text: string, ctx: Ctx, today: string, apiKey: string, models: string) {
+export interface Audio { mime: string; base64: string }
+
+/** Тело запроса к Gemini. Голос идёт как inline-аудио рядом с контекстом, текста сообщения тогда нет. */
+export function buildRequest(text: string, ctx: Ctx, today: string, audio?: Audio) {
   const context = {
     today, me: ctx.member.name, me_user_id: ctx.member.user_id,
     products: ctx.products, components: ctx.components.map(c => ({ id: c.id, name: c.name, sku: c.sku, unit: c.unit, stock: c.stock, price: c.price, currency: c.currency })),
     suppliers: ctx.suppliers, expense_categories: ctx.expense_categories, component_categories: ctx.component_categories,
     members: ctx.members, my_open_tasks: ctx.my_tasks, free_tasks: ctx.free_tasks ?? [], team_open_tasks: ctx.team_tasks ?? [],
   }
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: RULES }] },
-    contents: [{ role: 'user', parts: [{ text: `Контекст:
-${JSON.stringify(context)}
-
-Сообщение:
+  const message = audio ? 'Голосовое сообщение приложено аудиофайлом.' : `Сообщение:
 """
 ${text.slice(0, 2000)}
-"""` }] }],
+"""`
+  const parts: Record<string, unknown>[] = [{ text: `Контекст:
+${JSON.stringify(context)}
+
+${message}` }]
+  if (audio) parts.push({ inline_data: { mime_type: audio.mime, data: audio.base64 } })
+  return JSON.stringify({
+    systemInstruction: { parts: [{ text: RULES }] },
+    contents: [{ role: 'user', parts }],
     generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: SCHEMA, maxOutputTokens: 2048 },
   })
+}
+
+/**
+ * Пробует модели по порядку (GEMINI_MODEL — список через запятую). Лимит (429):
+ * если ждать до 15 секунд — ждёт и повторяет ту же модель один раз, иначе идёт
+ * к следующей. Сбой Google (5xx) — один повтор, затем следующая. Модель не
+ * найдена (404) — сразу к следующей.
+ */
+export async function parseMessage(text: string, ctx: Ctx, today: string, apiKey: string, models: string, audio?: Audio) {
+  const body = buildRequest(text, ctx, today, audio)
 
   const list = models.split(',').map(m => m.trim()).filter(Boolean)
   const dead = new Set<string>() // 404/400: этой модели у нас нет — в повторных проходах пропускаем
