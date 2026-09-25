@@ -75,6 +75,7 @@ async function onMessage(msg: TgMessage, env: Env) {
   const text = routeText(msg.chat.type, msg.text ?? msg.caption ?? '', {
     username: env.BOT_USERNAME, botId: Number(env.BOT_TOKEN.split(':')[0]), replyToId: msg.reply_to_message?.from?.id,
   })
+  console.log(`msg chat=${msg.chat.type} from=${msg.from?.id ?? '-'} len=${(msg.text ?? msg.caption ?? '').length} accepted=${text !== null}`)
   if (!msg.from || !text) return
   // в группе отвечаем на конкретное сообщение, чтобы было видно, кому
   const reply = inGroup ? { replyTo: msg.message_id } : {}
