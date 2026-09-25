@@ -185,6 +185,14 @@ export async function updateComponentsBulk(ids: string[], patch: Partial<Compone
   return rows.length
 }
 
+/** Как createComponentsBulk, но возвращает id в том же порядке. */
+export async function createComponentsReturning(workspaceId: string, items: ComponentInput[]) {
+  if (!items.length) return []
+  const rows = check(await supabase.from('fl_components').insert(items.map(i => ({ workspace_id: workspaceId, ...i }))).select('id, name')) as { id: string; name: string }[]
+  // PostgREST возвращает строки в порядке вставки; сверяем по названию на всякий случай
+  return items.map((it, k) => rows[k]?.name === it.name ? rows[k] : rows.find(r => r.name === it.name) ?? rows[k])
+}
+
 /** Все компоненты одним запросом: либо все, либо ни одного. */
 export async function createComponentsBulk(workspaceId: string, items: ComponentInput[]) {
   if (!items.length) return 0
@@ -344,6 +352,14 @@ export async function addBomItem(workspaceId: string, it: NewBomItem) {
   const res = await supabase.from('fl_bom_items').insert({ workspace_id: workspaceId, ...it }).select().single()
   if (res.error?.code === '23505') throw new Error('Эта позиция уже есть в составе — измените количество в строке')
   return bom(check(res) as BomItem)
+}
+
+/** Много строк состава одним запросом (загрузка из файла). */
+export async function addBomItemsBulk(workspaceId: string, items: (NewBomItem & { note?: string })[]) {
+  if (!items.length) return 0
+  const res = await supabase.from('fl_bom_items').insert(items.map(i => ({ workspace_id: workspaceId, ...i }))).select('id')
+  if (res.error?.code === '23505') throw new Error('Часть позиций уже есть в составе — обновите страницу и попробуйте снова')
+  return (check(res) as unknown[]).length
 }
 
 export type BomPatch = Partial<Pick<BomItem, 'qty' | 'price_override' | 'price_currency' | 'note' | 'position'>>

@@ -1,3 +1,4 @@
+import { BomImportButton } from './bomImport'
 import { CreateOrdersButton } from './orderCreate'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
@@ -87,6 +88,7 @@ export function BomEditor({ parent }: { parent: Parent }) {
           )}
 
           <AddBomItem parent={parent} nextPosition={(cost.lines.at(-1)?.item.position ?? 0) + 1} existing={cost.lines} />
+          <div className="mt-2 flex justify-end"><BomImportButton parent={parent} /></div>
           <EditLineModal line={editing} onClose={() => setEditing(null)} />
         </>
       )}

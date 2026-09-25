@@ -1,3 +1,4 @@
+import { CurrencyRisk } from './currencyRisk'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -70,6 +71,7 @@ export function EconomicsCard({ product: p, u, hasBom }: { product: Product; u: 
       </div>
 
       {u.price !== null && <div className="mt-4"><PriceStructure u={u} /></div>}
+      {hasBom && <CurrencyRisk product={p} priceRub={u.price} />}
 
       <p className="dash-muted mt-3 border-t border-[var(--d-line)] pt-2 text-xs">
         Расходы, привязанные к изделию: <Link className="underline" to={`/finance?product=${p.id}`}>{fmtMoney(spent, 'RUB')}</Link>

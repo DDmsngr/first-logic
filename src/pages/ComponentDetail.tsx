@@ -1,3 +1,4 @@
+import { PriceHistory } from '../currencyRisk'
 import { OffersPanel } from '../offers'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -124,6 +125,11 @@ export default function ComponentDetail() {
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Поставщики и цены">
         <h2 className="dash-label mb-2">Поставщики и цены</h2>
         <OffersPanel c={c} />
+      </section>
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="История цены">
+        <h2 className="dash-label mb-2">История цены</h2>
+        <PriceHistory componentId={c.id} />
       </section>
 
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Где используется">
