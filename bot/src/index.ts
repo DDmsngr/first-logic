@@ -4,7 +4,7 @@
 
 import { Db, type Ctx } from './db'
 import { ASK_TITLE, DONE_TITLE, describe, needsConfirm, normalize, type Intent } from './intents'
-import { parseMessage } from './parse'
+import { LimitError, parseMessage } from './parse'
 import { Tg, esc, type TgCallback, type TgMessage, type TgUpdate } from './tg'
 
 export interface Env {
@@ -99,7 +99,10 @@ async function onMessage(msg: TgMessage, env: Env) {
     raw = await parseMessage(text, c, today(), env.GEMINI, env.GEMINI_MODEL)
   } catch (e) {
     console.error('parse failed:', (e as Error).message)
-    return tg.send(chat, 'Не смог разобрать сообщение — сервис разбора не ответил. Попробуйте ещё раз через минуту.', { replyTo: msg.message_id })
+    const text = e instanceof LimitError
+      ? 'Сервис разбора сейчас перегружен (лимит запросов Gemini). Повторите через минуту.'
+      : 'Не смог разобрать сообщение — сервис разбора не ответил. Попробуйте ещё раз через минуту.'
+    return tg.send(chat, text, { replyTo: msg.message_id })
   }
   const { intent, missing } = normalize(raw, c)
 

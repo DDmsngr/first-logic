@@ -60,25 +60,66 @@ const RULES = `Ты — разборщик команд для рабочего 
 - Категорию расхода подбери из expense_categories по смыслу (изготовление корпусов → Производство).
 - confidence ниже 0.6, если сомневаешься в типе команды или в том, к какому изделию/компоненту она относится.`
 
-export async function parseMessage(text: string, ctx: Ctx, today: string, apiKey: string, model: string) {
+export class LimitError extends Error {}
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+/** Сколько подождать по ответу 429: «retry in 12.3s» / retryDelay "12s"; null — не указано. */
+function retryAfterMs(text: string): number | null {
+  const m = text.match(/retry in ([\d.]+)s/i) ?? text.match(/"retryDelay":\s*"([\d.]+)s"/)
+  return m ? Math.ceil(Number(m[1]) * 1000) : null
+}
+
+/**
+ * Пробует модели по порядку (GEMINI_MODEL — список через запятую). Лимит (429):
+ * если ждать до 15 секунд — ждёт и повторяет ту же модель один раз, иначе идёт
+ * к следующей. Модель не найдена (404) — тоже к следующей.
+ */
+export async function parseMessage(text: string, ctx: Ctx, today: string, apiKey: string, models: string) {
   const context = {
     today, me: ctx.member.name,
     products: ctx.products, components: ctx.components.map(c => ({ id: c.id, name: c.name, sku: c.sku, unit: c.unit, stock: c.stock, price: c.price, currency: c.currency })),
     suppliers: ctx.suppliers, expense_categories: ctx.expense_categories, component_categories: ctx.component_categories,
     members: ctx.members, my_open_tasks: ctx.my_tasks,
   }
-  const body = {
+  const body = JSON.stringify({
     systemInstruction: { parts: [{ text: RULES }] },
-    contents: [{ role: 'user', parts: [{ text: `Контекст:\n${JSON.stringify(context)}\n\nСообщение:\n"""\n${text.slice(0, 2000)}\n"""` }] }],
+    contents: [{ role: 'user', parts: [{ text: `Контекст:
+${JSON.stringify(context)}
+
+Сообщение:
+"""
+${text.slice(0, 2000)}
+"""` }] }],
     generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: SCHEMA, maxOutputTokens: 2048 },
-  }
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify(body),
   })
-  if (!r.ok) throw new Error(`gemini ${r.status}: ${(await r.text()).slice(0, 300)}`)
-  const j = await r.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
-  const raw = j.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? ''
-  return JSON.parse(raw) as Record<string, unknown>
+
+  const list = models.split(',').map(m => m.trim()).filter(Boolean)
+  let limited = false
+  let lastError = ''
+  for (const model of list) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body,
+      })
+      if (r.ok) {
+        const j = await r.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+        const raw = j.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? ''
+        return JSON.parse(raw) as Record<string, unknown>
+      }
+      const err = await r.text()
+      lastError = `${model}: ${r.status} ${err.slice(0, 200)}`
+      console.warn(`gemini ${lastError}`)
+      if (r.status === 429) {
+        limited = true
+        const wait = retryAfterMs(err)
+        if (attempt === 0 && wait !== null && wait <= 15_000) { await sleep(wait + 300); continue }
+        break
+      }
+      if (r.status === 404 || r.status === 400) break // нет такой модели / не подходит — следующая
+      throw new Error(`gemini ${lastError}`)
+    }
+  }
+  if (limited) throw new LimitError(lastError)
+  throw new Error(`gemini: ${lastError || 'нет моделей'}`)
 }
