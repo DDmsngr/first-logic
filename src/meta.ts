@@ -106,6 +106,10 @@ export function describeActivity(e: ActivityEvent, byUser: (id: string | null) =
     case 'component.created': return `${who} добавил(а) компонент «${m.title}»`
     case 'component.price': return `${who} изменил(а) цену «${m.title}»: ${fmtNum(m.from)} → ${fmtNum(m.to)}`
     case 'component.stock': return `${m.reason ? `${m.reason}: ` : `${who} изменил(а) `}остаток «${m.title}» ${fmtNum(m.from)} → ${fmtNum(m.to)} ${m.unit ?? ''}`.trimEnd()
+    case 'test.pass': return `${who} записал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}: годен`
+    case 'test.fail': return `${who} записал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}: брак`
+    case 'test.pending': return `${who} начал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}`
+    case 'bom.revision': return `${who} зафиксировал(а) ревизию состава «${m.title}»: ${m.to}`
     case 'build.done': return `${who} собрал(а) «${m.title}» × ${fmtNum(m.to)} — списано ${m.lines ?? ''} поз.`
     case 'build.reverted': return `${who} отменил(а) сборку «${m.title}» × ${fmtNum(m.to)}, компоненты вернулись на склад`
     case 'order.created': return `${who} создал(а) ${m.title}${m.supplier ? ` (${m.supplier})` : ''}, позиций: ${m.lines ?? ''}`

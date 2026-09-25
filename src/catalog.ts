@@ -2,6 +2,7 @@
 import { supabase } from './supabase'
 import type { Currency, Rate } from './money'
 import type { BomItem } from './costing'
+import type { TestParam } from './quality'
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message)
@@ -240,6 +241,7 @@ export interface Product {
   overhead_pct: number
   cost_override: number | null
   planned_qty: number
+  test_params: TestParam[]
   created_at: string
   updated_at: string
   archived_at: string | null
@@ -253,6 +255,7 @@ const prod = (p: Product): Product => ({
   ...p, planned_price: numOrNull(p.planned_price), actual_price: numOrNull(p.actual_price),
   manufacturing_cost: Number(p.manufacturing_cost ?? 0), additional_cost: Number(p.additional_cost ?? 0),
   overhead_pct: Number(p.overhead_pct ?? 0), cost_override: numOrNull(p.cost_override ?? null), planned_qty: Number(p.planned_qty ?? 0),
+  test_params: Array.isArray(p.test_params) ? p.test_params : [],
 })
 
 export async function fetchProducts(workspaceId: string, archived = false) {
@@ -270,7 +273,7 @@ export async function createProduct(workspaceId: string, p: ProductInput) {
   return prod(check(await supabase.from('fl_products').insert({ workspace_id: workspaceId, ...p }).select().single()) as Product)
 }
 
-export type ProductCostPatch = Partial<Pick<Product, 'manufacturing_cost' | 'additional_cost' | 'overhead_pct' | 'cost_override' | 'planned_qty'>>
+export type ProductCostPatch = Partial<Pick<Product, 'manufacturing_cost' | 'additional_cost' | 'overhead_pct' | 'cost_override' | 'planned_qty' | 'test_params'>>
 
 export async function updateProduct(id: string, patch: Partial<ProductInput & { archived_at: string | null }> & ProductCostPatch) {
   one(check(await supabase.from('fl_products').update(patch).eq('id', id).select('id')), 'Изделие')

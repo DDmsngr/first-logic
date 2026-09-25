@@ -1,6 +1,7 @@
 // Склад в работе: сборки, заказы поставщикам, предложения поставщиков.
 import { supabase } from './supabase'
 import type { Currency } from './money'
+import type { Measurement, RevLine, TestResult } from './quality'
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message)
@@ -164,4 +165,65 @@ export async function receiveOrder(id: string, lines: { item_id: string; qty: nu
 export async function searchOrders(workspaceId: string, q: string) {
   return check(await supabase.rpc('fl_search_orders', { p_ws: workspaceId, p_q: q })) as
     { id: string; num: number; status: OrderStatus; supplier: string | null }[]
+}
+
+// ── испытания ───────────────────────────────────────────────────────────────
+
+
+export interface ProductTest {
+  id: string
+  product_id: string
+  serial: string | null
+  tested_on: string
+  tester_id: string | null
+  measurements: Measurement[]
+  result: TestResult
+  note: string
+  created_at: string
+}
+export type TestInput = Pick<ProductTest, 'serial' | 'tested_on' | 'measurements' | 'note'>
+
+export async function fetchTests(productId: string) {
+  return check(await supabase.from('fl_tests').select('*').eq('product_id', productId)
+    .order('tested_on', { ascending: false }).order('created_at', { ascending: false }).limit(200)) as ProductTest[]
+}
+
+export async function saveTest(productId: string, t: TestInput, id?: string) {
+  if (id) one(check(await supabase.from('fl_tests').update(t).eq('id', id).select('id')), 'Испытание')
+  else check(await supabase.from('fl_tests').insert({ product_id: productId, ...t }).select('id'))
+}
+
+export async function deleteTest(id: string) {
+  one(check(await supabase.from('fl_tests').delete().eq('id', id).select('id')), 'Испытание')
+}
+
+// ── ревизии состава ─────────────────────────────────────────────────────────
+
+export interface BomRevision {
+  id: string
+  product_id: string | null
+  assembly_id: string | null
+  label: string
+  note: string
+  lines: RevLine[]
+  total_rub: number
+  created_by: string | null
+  created_at: string
+}
+
+export async function fetchRevisions(target: { productId?: string; assemblyId?: string }) {
+  let q = supabase.from('fl_bom_revisions').select('*').order('created_at', { ascending: false }).limit(50)
+  if (target.productId) q = q.eq('product_id', target.productId)
+  if (target.assemblyId) q = q.eq('assembly_id', target.assemblyId)
+  return (check(await q) as BomRevision[]).map(r => ({ ...r, total_rub: Number(r.total_rub) }))
+}
+
+export async function createRevision(target: { productId?: string; assemblyId?: string }, label: string, note: string, lines: RevLine[], total: number) {
+  check(await supabase.from('fl_bom_revisions').insert({
+    product_id: target.productId ?? null, assembly_id: target.assemblyId ?? null, label, note, lines, total_rub: Math.round(total * 100) / 100,
+  }).select('id'))
+}
+
+export async function deleteRevision(id: string) {
+  one(check(await supabase.from('fl_bom_revisions').delete().eq('id', id).select('id')), 'Ревизия')
 }
