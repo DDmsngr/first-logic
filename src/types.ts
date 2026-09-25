@@ -19,7 +19,14 @@ export interface Member {
   status: MemberStatus
   joined_at: string | null
   last_seen: string | null
+  // до миграции 0017 полей нет
+  presence_mode?: PresenceMode
+  presence_from?: string
+  presence_to?: string
+  presence_tz?: string
 }
+
+export type PresenceMode = 'always' | 'schedule' | 'never'
 
 export interface Label { id: string; workspace_id: string; name: string; color: string }
 

@@ -7,10 +7,33 @@ import {
 } from './api'
 import { useWorkspace } from './auth'
 import { DOC_TYPES, describeActivity, fmtDateTime, fmtSize, timeAgo } from './meta'
-import type { Attachment, DocType } from './types'
+import type { ActivityEvent, Attachment, DocType } from './types'
 import { Modal, QueryState, Spinner, errMsg, useToast } from './ui'
 
 // ── журнал активности ───────────────────────────────────────────────────────
+
+/** Куда ведёт запись журнала: карточка того, что изменилось. */
+function activityLink(e: ActivityEvent): string | null {
+  const id = e.entity_id
+  switch (e.entity_type) {
+    case 'task': return id && `/tasks/${id}`
+    case 'component': return id && `/components/${id}`
+    case 'product': return id && `/products/${id}`
+    case 'assembly': return id && `/assemblies/${id}`
+    case 'order': return id && `/orders/${id}`
+    case 'supplier': return id && `/suppliers/${id}`
+    case 'expense': return '/finance'
+    case 'member': return e.action === 'member.joined' && e.actor_id ? `/team/${e.actor_id}` : '/team'
+    default: return null
+  }
+}
+
+// на карточке самой сущности ссылка вела бы на эту же страницу — там строки просто текст
+function ActivityRow({ to, children }: { to: string | null; children: React.ReactNode }) {
+  return to
+    ? <Link to={to} className="-mx-2 flex gap-3 rounded-md px-2 py-1 hover:bg-white/5 active:bg-white/10">{children}</Link>
+    : <div className="flex gap-3 py-1">{children}</div>
+}
 
 export function ActivityList({ entityId, actorId, empty = 'Событий пока нет' }: {
   entityId?: string; actorId?: string; empty?: string
@@ -25,14 +48,16 @@ export function ActivityList({ entityId, actorId, empty = 'Событий пок
   const events = q.data?.pages.flat() ?? []
   return (
     <QueryState loading={q.isLoading} error={q.error} onRetry={() => q.refetch()} empty={events.length === 0} emptyText={empty}>
-      <ol className="space-y-2.5" data-testid="activity">
+      <ol className="space-y-1" data-testid="activity">
         {events.map(e => (
-          <li key={e.id} className="flex gap-3 text-sm">
-            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--d-tint)]" aria-hidden />
-            <div className="min-w-0">
-              <p>{describeActivity(e, byUser)}</p>
-              <time className="dash-muted text-xs" dateTime={e.created_at} title={fmtDateTime(e.created_at)}>{timeAgo(e.created_at)}</time>
-            </div>
+          <li key={e.id} className="text-sm">
+            <ActivityRow to={entityId ? null : activityLink(e)}>
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--d-tint)]" aria-hidden />
+              <div className="min-w-0">
+                <p>{describeActivity(e, byUser)}</p>
+                <time className="dash-muted text-xs" dateTime={e.created_at} title={fmtDateTime(e.created_at)}>{timeAgo(e.created_at)}</time>
+              </div>
+            </ActivityRow>
           </li>
         ))}
       </ol>

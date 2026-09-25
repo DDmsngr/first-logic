@@ -6,6 +6,7 @@ import { useWorkspace } from '../auth'
 import { ROLE_LABEL } from '../meta'
 import ChangePassword from '../ChangePassword'
 import { TelegramSettings } from '../telegram'
+import { PresenceSettings } from '../presence'
 import { Avatar, Field, PageHeader, Spinner, errMsg, useToast } from '../ui'
 
 export default function Settings() {
@@ -53,7 +54,7 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader title="Настройки" sub="Профиль, Telegram и уведомления, безопасность" />
+      <PageHeader title="Настройки" sub="Профиль, видимость, Telegram и уведомления, безопасность" />
 
       <section className="dash-card mb-4 p-5" aria-label="Профиль">
         <h2 className="dash-label mb-4">Профиль</h2>
@@ -89,6 +90,8 @@ export default function Settings() {
           </div>
         </form>
       </section>
+
+      <PresenceSettings />
 
       <TelegramSettings />
 

@@ -1,3 +1,4 @@
+import { presenceLabel } from '../presence'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -6,7 +7,7 @@ import {
   deleteInvitedMember, fetchInvitations, fetchTasks, inviteMember, reissueInvitation, updateMember,
 } from '../api'
 import { useWorkspace } from '../auth'
-import { MEMBER_STATUS_LABEL, ROLE_LABEL, timeAgo } from '../meta'
+import { MEMBER_STATUS_LABEL, ROLE_LABEL } from '../meta'
 import type { Member, Role } from '../types'
 import { Avatar, Field, Modal, PageHeader, QueryState, errMsg, useToast } from '../ui'
 
@@ -73,7 +74,7 @@ export default function Team() {
                     <dl className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
                       <div><dd className="text-lg font-semibold tabular-nums">{current}</dd><dt className="dash-muted">в работе</dt></div>
                       <div><dd className="text-lg font-semibold tabular-nums">{done}</dd><dt className="dash-muted">выполнено</dt></div>
-                      <div><dd className="pt-1.5 text-xs">{m.user_id === me.user_id ? 'сейчас' : timeAgo(m.last_seen)}</dd><dt className="dash-muted">активность</dt></div>
+                      <div><dd className="pt-1.5 text-xs">{m.user_id === me.user_id ? 'сейчас' : presenceLabel(m)}</dd><dt className="dash-muted">активность</dt></div>
                     </dl>
                   )}
                   {isAdmin && m.user_id !== me.user_id && m.role !== 'owner' && (

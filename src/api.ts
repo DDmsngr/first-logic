@@ -412,7 +412,7 @@ export async function updateMember(id: string, patch: Partial<Pick<Member, 'role
   if (!rows.length) throw new Error('Нет прав на изменение участника')
 }
 
-export type ProfilePatch = Partial<Pick<Member, 'name' | 'position' | 'phone' | 'avatar_url'>>
+export type ProfilePatch = Partial<Pick<Member, 'name' | 'position' | 'phone' | 'avatar_url' | 'presence_mode' | 'presence_from' | 'presence_to' | 'presence_tz'>>
 
 export async function updateMyProfile(memberId: string, patch: ProfilePatch) {
   const rows = check(await supabase.from('ws_members').update(patch).eq('id', memberId).select('id')) as unknown[]

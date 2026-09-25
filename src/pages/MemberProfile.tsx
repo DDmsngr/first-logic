@@ -1,9 +1,10 @@
+import { presenceLabel } from '../presence'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ArrowLeft, MessageSquare } from 'lucide-react'
 import { fetchTasks, openDirect } from '../api'
 import { useWorkspace } from '../auth'
-import { MEMBER_STATUS_LABEL, ROLE_LABEL, fmtDate, timeAgo } from '../meta'
+import { MEMBER_STATUS_LABEL, ROLE_LABEL, fmtDate } from '../meta'
 import { Avatar, QueryState, errMsg, useToast } from '../ui'
 import { ActivityList } from '../shared'
 import { DueLabel, PriorityChip, StatusChip } from '../taskParts'
@@ -45,7 +46,7 @@ export default function MemberProfile() {
             <span className="dash-chip">{ROLE_LABEL[m.role]}</span>
             <span className="dash-chip">{MEMBER_STATUS_LABEL[m.status]}</span>
             <span className="dash-chip">в команде с {fmtDate(m.joined_at)}</span>
-            <span className="dash-chip">активность: {userId === myId ? 'сейчас' : timeAgo(m.last_seen)}</span>
+            <span className="dash-chip">активность: {userId === myId ? 'сейчас' : presenceLabel(m)}</span>
           </div>
         </div>
         {userId !== myId && <button className="dash-btn" disabled={dm.isPending} onClick={() => dm.mutate()}><MessageSquare className="h-4 w-4" aria-hidden /> Написать</button>}
