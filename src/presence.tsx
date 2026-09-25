@@ -17,6 +17,8 @@ const hhmm = (t: string | undefined, d: string) => (t ?? d).slice(0, 5)
 /** Что показывать другим в поле «активность». */
 export function presenceLabel(m: Member) {
   if (m.presence_mode === 'never') return 'скрыта'
+  // окно ещё не открывалось после смены настройки: записи нет, но это не «ни разу не заходил»
+  if (!m.last_seen && m.presence_mode === 'schedule') return 'скрыта'
   return timeAgo(m.last_seen)
 }
 
