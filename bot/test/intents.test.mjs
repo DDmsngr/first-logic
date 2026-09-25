@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { canAttach, describe, needsConfirm, normalize } from '../src/intents.ts'
+import { canAttach, describe, fillFromText, needsConfirm, normalize } from '../src/intents.ts'
 
 const ctx = {
   member: { id: 'm1', user_id: 'u1', name: 'Алексей', workspace_id: 'w1' },
@@ -70,4 +70,18 @@ test('файл из Telegram: прикрепляется только к зад�
   assert.equal(canAttach({ intent: 'create_expense' }), false)
   const i = { intent: 'create_task', title: 'Разобрать таблицу', tg_file: { file_id: 'x', name: 'табл.pdf', mime: 'application/pdf', size: 10 } }
   assert.ok(describe(i, ctx, s => s).includes('📎 табл.pdf'))
+})
+
+test('исполнитель и срок достраиваются из текста, если модель их пропустила', () => {
+  const task = { intent: 'create_task', title: 'Прикрепить файлы' }
+  const f = t => fillFromText(task, t, ctx, '2026-09-26')
+  const a = f('сделай задачу по прикреплению файлов, ответственный я, срок до завтра')
+  assert.equal(a.assignee_user_id, 'u1'); assert.equal(a.due_date, '2026-09-27')
+  assert.equal(f('задача на меня, послезавтра').due_date, '2026-09-28')
+  assert.equal(f('купить разъёмы до конца дня').due_date, '2026-09-26')
+  assert.equal(f('купить разъёмы').assignee_user_id, undefined)
+  assert.equal(f('исполнитель Иван').assignee_user_id, undefined)
+  // уже заполненное моделью не трогаем; не-задачи тоже
+  assert.equal(fillFromText({ ...task, due_date: '2026-10-01' }, 'до завтра', ctx, '2026-09-26').due_date, '2026-10-01')
+  assert.equal(fillFromText({ intent: 'build' }, 'завтра на меня', ctx, '2026-09-26').due_date, undefined)
 })

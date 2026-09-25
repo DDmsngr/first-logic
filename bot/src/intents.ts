@@ -156,3 +156,27 @@ export const ASK_TITLE: Partial<Record<IntentKind, string>> = {
   create_product: 'Добавить изделие?', create_assembly: 'Добавить узел?', add_note: 'Добавить заметку?',
   build: 'Списать по сборке?',
 }
+
+const addDays = (iso: string, n: number) => {
+  const d = new Date(iso + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Модель иногда пропускает очевидное («ответственный я», «срок до завтра»). Для новой
+ * задачи достраиваем исполнителя и срок по самому тексту, если модель их не вернула.
+ */
+export function fillFromText(i: Intent, text: string, ctx: Ctx, today: string): Intent {
+  if (i.intent !== 'create_task') return i
+  const out = { ...i }
+  if (!out.assignee_user_id && /(ответственн\S*|исполнител\S*|назнач\S*)\s+(я|мне|на\s+меня)(?![а-яё])|на\s+меня(?![а-яё])|беру\s+(себе|на\s+себя)|(^|[\s,.])мне\s+(надо|нужно|сделать)/i.test(text)) {
+    out.assignee_user_id = ctx.member.user_id
+  }
+  if (!out.due_date) {
+    if (/послезавтра/i.test(text)) out.due_date = addDays(today, 2)
+    else if (/(до|на|к)\s+завтра(?![а-яё])|(^|[\s,.])завтра(?![а-яё])/i.test(text)) out.due_date = addDays(today, 1)
+    else if (/(до\s+конца\s+дня|сегодня)(?![а-яё])/i.test(text)) out.due_date = today
+  }
+  return out
+}

@@ -3,7 +3,7 @@
 // Обратно: очередь fl_outbox (её наполняют триггеры базы) → уведомления раз в минуту.
 
 import { Db, type Ctx, type Digest } from './db'
-import { ASK_TITLE, DONE_TITLE, canAttach, describe, needsConfirm, normalize, type Intent, type TgFile } from './intents'
+import { ASK_TITLE, DONE_TITLE, canAttach, describe, fillFromText, needsConfirm, normalize, type Intent, type TgFile } from './intents'
 import { LimitError, parseMessage } from './parse'
 import { isGroupChat, routeText } from './route'
 import { Tg, esc, type TgCallback, type TgMessage, type TgUpdate } from './tg'
@@ -135,7 +135,9 @@ async function onMessage(msg: TgMessage, env: Env) {
       : 'Не смог разобрать сообщение — сервис разбора не ответил. Попробуйте ещё раз через минуту.'
     return tg.send(chat, text, { replyTo: msg.message_id })
   }
-  const { intent, missing } = normalize(raw, c)
+  const norm = normalize(raw, c)
+  const intent = fillFromText(norm.intent, text, c, today())
+  const missing = norm.missing
   if (file && canAttach(intent) && !missing.length) {
     if (file.size > TG_LIMIT) return tg.send(chat, 'Файл больше 20 МБ — Telegram не отдаёт такие боту. Загрузите его в задачу на сайте (до 25 МБ).', { replyTo: msg.message_id })
     intent.tg_file = file
