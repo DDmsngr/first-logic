@@ -289,3 +289,45 @@ export async function cancelStocktake(id: string) {
 export async function deleteStocktake(id: string) {
   one(check(await supabase.from('fl_stocktakes').delete().eq('id', id).select('id')), 'Инвентаризация (применённую удалить нельзя)')
 }
+
+// ── резервы ─────────────────────────────────────────────────────────────────
+
+export interface Reservation {
+  id: string
+  workspace_id: string
+  product_id: string | null
+  assembly_id: string | null
+  title: string
+  units: number
+  note: string
+  status: 'active' | 'released' | 'fulfilled'
+  created_by: string | null
+  created_at: string
+}
+
+/** Сколько каждого компонента лежит в активных резервах. */
+export async function fetchReserved() {
+  const rows = check(await supabase.from('fl_component_reserved').select('component_id, reserved').limit(5000)) as { component_id: string; reserved: number }[]
+  return new Map(rows.map(r => [r.component_id, Number(r.reserved)]))
+}
+
+export async function fetchTargetReservations(target: { productId?: string; assemblyId?: string }) {
+  let q = supabase.from('fl_reservations').select('*').eq('status', 'active').order('created_at', { ascending: false })
+  if (target.productId) q = q.eq('product_id', target.productId)
+  if (target.assemblyId) q = q.eq('assembly_id', target.assemblyId)
+  return (check(await q) as Reservation[]).map(r => ({ ...r, units: Number(r.units) }))
+}
+
+export async function fetchComponentReservations(componentId: string) {
+  const rows = check(await supabase.from('fl_reservation_lines').select('qty, reservation:fl_reservations(*)').eq('component_id', componentId)) as unknown as
+    { qty: number; reservation: Reservation | null }[]
+  return rows.filter(r => r.reservation?.status === 'active').map(r => ({ qty: Number(r.qty), r: { ...r.reservation!, units: Number(r.reservation!.units) } }))
+}
+
+export async function reserve(target: { productId?: string; assemblyId?: string }, units: number, note: string) {
+  return check(await supabase.rpc('fl_reserve', { p_product: target.productId ?? null, p_assembly: target.assemblyId ?? null, p_units: units, p_note: note })) as string
+}
+
+export async function releaseReservation(id: string) {
+  check(await supabase.rpc('fl_reservation_release', { p_id: id }))
+}

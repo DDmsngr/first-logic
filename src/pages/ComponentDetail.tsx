@@ -1,3 +1,4 @@
+import { ComponentReservations, ReservedNote } from '../reservations'
 import { PriceHistory } from '../currencyRisk'
 import { OffersPanel } from '../offers'
 import { useState, type FormEvent } from 'react'
@@ -73,10 +74,13 @@ export default function ComponentDetail() {
           <button className="dash-btn dash-btn-ghost" onClick={() => setEditing(true)}><Pencil className="h-4 w-4" aria-hidden /> Редактировать</button>
         </>} />
 
+      <ComponentReservations componentId={c.id} unit={c.unit} />
+
       <div className="mb-4 grid gap-3 md:grid-cols-3">
         <section className="dash-card p-4" aria-label="Склад">
           <h2 className="dash-label mb-2">Склад</h2>
           <div className="text-3xl font-semibold"><Stock c={c} /></div>
+          <ReservedNote id={c.id} stock={c.stock} unit={c.unit} />
           <p className="dash-muted mt-1 text-xs">
             {c.min_stock > 0 ? `Минимум ${fmtQty(c.min_stock)} ${c.unit}` : 'Минимум не задан'}
             {needsReorder(c) && <span className="ml-1 text-[var(--d-warn)]">— пора заказать</span>}

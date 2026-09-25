@@ -110,6 +110,8 @@ export function describeActivity(e: ActivityEvent, byUser: (id: string | null) =
     case 'test.fail': return `${who} записал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}: брак`
     case 'test.pending': return `${who} начал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}`
     case 'bom.revision': return `${who} зафиксировал(а) ревизию состава «${m.title}»: ${m.to}`
+    case 'reservation.created': return `${who} зарезервировал(а) компоненты под «${m.title}» × ${fmtNum(m.to)}`
+    case 'reservation.released': return `${who} снял(а) резерв под «${m.title}» × ${fmtNum(m.to)}`
     case 'stocktake.applied': return `${who} провёл(а) ${m.title}: проверено ${m.from ?? ''} поз., исправлено ${m.to ?? ''}`
     case 'build.done': return `${who} собрал(а) «${m.title}» × ${fmtNum(m.to)} — списано ${m.lines ?? ''} поз.`
     case 'build.reverted': return `${who} отменил(а) сборку «${m.title}» × ${fmtNum(m.to)}, компоненты вернулись на склад`

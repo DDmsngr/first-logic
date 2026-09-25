@@ -1,3 +1,4 @@
+import { ReservePanel } from '../reservations'
 import { BuildPanel } from '../builds'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -102,6 +103,7 @@ export default function AssemblyDetail() {
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Сборка">
         <h2 className="dash-label mb-3">Сборка узла — списание со склада</h2>
         <BuildPanel target={{ assemblyId: a.id }} />
+        <ReservePanel target={{ assemblyId: a.id }} />
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">

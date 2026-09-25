@@ -31,7 +31,7 @@ export function BuildPanel({ target }: { target: Target }) {
   }).sort((a, b) => (a.stock - a.q) - (b.stock - b.q))
   const negative = lines.filter(l => l.stock - l.q < 0)
 
-  const refresh = () => ['builds', 'components', 'component', 'activity', 'bom'].forEach(k => qc.invalidateQueries({ queryKey: [k] }))
+  const refresh = () => ['builds', 'components', 'component', 'activity', 'bom', 'reserved', 'reservations', 'component-reservations'].forEach(k => qc.invalidateQueries({ queryKey: [k] }))
   const run = useMutation({
     mutationFn: () => build(target, n, note.trim()),
     onSuccess: () => { toast(`Списано со склада: ${lines.length} позиций на ${fmtQty(n)} шт`); setPreview(false); setNote(''); refresh() },

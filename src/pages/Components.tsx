@@ -1,3 +1,4 @@
+import { ReservedNote } from '../reservations'
 import { BulkEditComponents } from '../bulkComponents'
 import ComponentsIO, { OrderFromList } from '../ComponentsIO'
 import { useMemo, useState } from 'react'
@@ -236,7 +237,7 @@ export default function Components() {
                   <td className="px-3 py-3"><DictChip dict={c.category_id ? catById.get(c.category_id) : null} /></td>
                   <td className="px-3 py-3">{c.supplier_id ? <Link to={`/suppliers/${c.supplier_id}`} className="hover:underline">{supById.get(c.supplier_id)?.name ?? '—'}</Link> : <span className="dash-muted">—</span>}</td>
                   <td className="px-3 py-3 text-right"><Price amount={c.price} currency={c.currency} /></td>
-                  <td className="px-3 py-3 text-right"><Stock c={c} /></td>
+                  <td className="px-3 py-3 text-right"><Stock c={c} /><ReservedNote id={c.id} stock={c.stock} unit={c.unit} /></td>
                   <td className="dash-muted px-3 py-3">{c.location || '—'}</td>
                   <td className="px-4 py-3"><ComponentStatusChip status={c.status} /></td>
                 </tr>
@@ -263,7 +264,7 @@ export default function Components() {
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                   <DictChip dict={c.category_id ? catById.get(c.category_id) : null} />
-                  <span className="ml-auto"><Stock c={c} /></span>
+                  <span className="ml-auto text-right"><Stock c={c} /><ReservedNote id={c.id} stock={c.stock} unit={c.unit} /></span>
                 </div>
               </Link>
             </li>
