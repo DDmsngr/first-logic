@@ -1,11 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Copy, FileDown, FileUp } from 'lucide-react'
-import { createComponentsBulk, createSupplier, fetchAllComponents, updateComponent, type ComponentInput } from './catalog'
+import { createComponentsBulk, createSupplier, fetchAllComponents, updateComponent, type Component, type ComponentInput } from './catalog'
 import { useWorkspace } from './auth'
-import { useDicts, useSuppliers } from './catalogParts'
+import { useDicts, useRates, useSuppliers } from './catalogParts'
 import { aiPrompt, buildTemplate, parseComponentFile, type ImportRow } from './componentJson'
-import { fmtMoney } from './money'
+import { fmtMoney, parseAmount } from './money'
+import { buildOrder, orderTotals, toCsv, toText } from './orders'
+import { saveText } from './download'
 import { Modal, errMsg, useToast } from './ui'
 
 const lc = (s: string) => s.trim().toLowerCase()
@@ -168,5 +170,75 @@ function PreviewRow({ r, skipped }: { r: ImportRow; skipped: boolean }) {
       {r.errors.map((e, i) => <div key={i} className="text-xs text-[var(--d-danger)]">{e}</div>)}
       {r.warnings.filter(w => !w.startsWith('цена не указана')).map((w, i) => <div key={i} className="text-xs text-[var(--d-warn)]">{w}</div>)}
     </li>
+  )
+}
+
+
+// ── выгрузка списка для заказа ──────────────────────────────────────────────
+
+/**
+ * Кнопка «Выгрузить»: берёт то, что сейчас показано в списке (с учётом фильтров —
+ * поставщик, категория, «Заказать», «Без цены»), оставляет позиции с малым остатком
+ * и считает, сколько докупить, чтобы довести остаток до нужного.
+ */
+export function OrderFromList({ items }: { items: Component[] }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button className="dash-btn dash-btn-ghost" onClick={() => setOpen(true)} disabled={items.length === 0}
+        title="Выгрузить список для заказа: то, что показано сейчас"><FileDown className="h-4 w-4" aria-hidden /> Выгрузить</button>
+      {open && <OrderModal items={items} onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
+function OrderModal({ items, onClose }: { items: Component[]; onClose: () => void }) {
+  const sups = useSuppliers()
+  const rates = useRates()
+  const toast = useToast()
+  const [below, setBelow] = useState(true)
+  const [belowN, setBelowN] = useState('5')
+  const [target, setTarget] = useState('10')
+
+  const t = parseAmount(target)
+  const limit = below ? parseAmount(belowN) : null
+  const valid = Number.isFinite(t) && t > 0
+  const supName = (id: string | null) => (id ? sups.data?.find(s => s.id === id)?.name ?? '' : '')
+  const rows = valid ? buildOrder(new Map(items.map(c => [c.id, t])), items, supName, rates.data ?? [], {
+    onlyShort: true, belowStock: limit !== null && Number.isFinite(limit) ? limit : null,
+  }) : []
+  const tot = orderTotals(rows)
+  const heading = `Заказ: довести остаток до ${target} шт — ${new Date().toLocaleDateString('ru-RU')}`
+
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(toText(rows, heading)); toast('Список скопирован') }
+    catch { toast('Не удалось скопировать — скачайте CSV', 'error') }
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Выгрузка для заказа">
+      <div className="space-y-3">
+        <p className="dash-muted text-sm">Берутся позиции, которые сейчас показаны в списке ({items.length}). Чтобы выгрузить только одного поставщика или категорию, сначала выберите их в фильтрах списка.</p>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-[var(--d-accent)]" checked={below} onChange={e => setBelow(e.target.checked)} />
+          Только с остатком меньше
+          <input className="dash-input !min-h-9 !w-16 text-right" inputMode="decimal" value={belowN} disabled={!below} onChange={e => setBelowN(e.target.value)} aria-label="Порог остатка" /> шт
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          Докупить, чтобы на складе стало
+          <input className="dash-input !min-h-9 !w-20 text-right" inputMode="decimal" value={target} onChange={e => setTarget(e.target.value)} aria-label="Нужный остаток" /> шт
+        </label>
+        {!valid && <p className="text-sm text-[var(--d-danger)]" role="alert">Введите нужный остаток — число больше нуля.</p>}
+        <p className="text-sm tabular-nums" role="status">
+          {rows.length === 0 ? 'Под условия ничего не подходит.' : <>Позиций в заказе: <b>{tot.positions}</b> · ≈ <b>{fmtMoney(tot.sumRub, 'RUB')}</b>{tot.withoutPrice > 0 && <span className="text-[var(--d-warn)]"> · без цены: {tot.withoutPrice} (в итог не входят)</span>}</>}
+        </p>
+        <div className="flex flex-wrap justify-end gap-2 pt-1">
+          <button className="dash-btn dash-btn-ghost" onClick={onClose}>Готово</button>
+          <button className="dash-btn dash-btn-ghost" disabled={rows.length === 0} onClick={() => void copy()}>Скопировать список</button>
+          <button className="dash-btn" disabled={rows.length === 0}
+            onClick={() => saveText(`Заказ до ${target} шт ${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows, heading))}>Скачать CSV (Excel)</button>
+        </div>
+      </div>
+    </Modal>
   )
 }

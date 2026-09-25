@@ -1,4 +1,4 @@
-import ComponentsIO from '../ComponentsIO'
+import ComponentsIO, { OrderFromList } from '../ComponentsIO'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -85,6 +85,7 @@ export default function Components() {
       <PageHeader title="Компоненты"
         sub={<>{all.length} позиций · на складе на {fmtMoney(stockValue, 'RUB')}{reorderCount > 0 && <> · <button className="text-[var(--d-warn)] underline" onClick={() => setParam('reorder', reorder ? '' : '1')}>заказать: {reorderCount}</button></>}{noPriceCount > 0 && <> · <button className="underline" onClick={() => setParam('noprice', noPrice ? '' : '1')}>без цены: {noPriceCount}</button></>}</>}
         actions={<>
+          <OrderFromList items={items} />
           <ComponentsIO />
           <button className="dash-btn dash-btn-ghost" onClick={() => setCats(true)}><Tags className="h-4 w-4" aria-hidden /> Категории</button>
           <button className="dash-btn" onClick={() => setCreating(true)}><Plus className="h-4 w-4" aria-hidden /> Новый компонент</button>
