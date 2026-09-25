@@ -110,6 +110,9 @@ export function describeActivity(e: ActivityEvent, byUser: (id: string | null) =
     case 'test.fail': return `${who} записал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}: брак`
     case 'test.pending': return `${who} начал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}`
     case 'bom.revision': return `${who} зафиксировал(а) ревизию состава «${m.title}»: ${m.to}`
+    case 'unit.shipped': return `${who} отгрузил(а) ${m.title} № ${m.serial}${m.to ? ` — ${m.to}` : ''}`
+    case 'unit.scrapped': return `${who} списал(а) в брак ${m.title} № ${m.serial}`
+    case 'unit.restored': return `${who} вернул(а) на склад ${m.title} № ${m.serial}`
     case 'reservation.created': return `${who} зарезервировал(а) компоненты под «${m.title}» × ${fmtNum(m.to)}`
     case 'reservation.released': return `${who} снял(а) резерв под «${m.title}» × ${fmtNum(m.to)}`
     case 'stocktake.applied': return `${who} провёл(а) ${m.title}: проверено ${m.from ?? ''} поз., исправлено ${m.to ?? ''}`

@@ -100,6 +100,7 @@ export function WorkspaceProvider({ session, children }: { session: Session; chi
     on('fl_bom_items', ['bom', 'activity'])
     on('fl_expenses', ['expenses', 'activity'])
     on('fl_builds', ['builds', 'components', 'activity', 'reserved', 'reservations', 'component-reservations'])
+    on('fl_units', ['units', 'unit', 'activity'])
     on('fl_reservations', ['reserved', 'reservations', 'component-reservations', 'activity'])
     on('fl_purchase_orders', ['orders', 'order', 'components', 'activity'])
     on('fl_purchase_order_items', ['orders', 'order'])

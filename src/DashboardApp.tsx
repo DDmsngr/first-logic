@@ -32,6 +32,8 @@ import OrderDetail from './pages/OrderDetail'
 import ProductOffer from './pages/ProductOffer'
 import ComponentLabels from './pages/ComponentLabels'
 import StocktakeList from './pages/Stocktake'
+import Units from './pages/Units'
+import UnitDetail from './pages/UnitDetail'
 import StocktakeDetail from './pages/StocktakeDetail'
 
 // Realtime мгновенно инвалидирует кеш, а опрос раз в 20 с — страховка на случай
@@ -99,6 +101,8 @@ export default function DashboardApp() {
                 <Route path="products/:id" element={<ProductDetail />} />
                 <Route path="products/:id/offer" element={<ProductOffer />} />
                 <Route path="components/labels" element={<ComponentLabels />} />
+                <Route path="units" element={<Units />} />
+                <Route path="units/:id" element={<UnitDetail />} />
                 <Route path="stocktake" element={<StocktakeList />} />
                 <Route path="stocktake/:id" element={<StocktakeDetail />} />
                 <Route path="assemblies" element={<Assemblies />} />
