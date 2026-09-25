@@ -7,6 +7,6 @@ const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.
 export const isConfigured = Boolean(url && anonKey)
 
 // anon-ключ публичен по дизайну Supabase: всю защиту дают RLS-политики в БД.
-export const supabase = createClient(url ?? 'http://localhost', anonKey ?? 'missing', {
+export const supabase = createClient(url || 'http://localhost', anonKey || 'missing', {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: 'fl-auth' },
 })
