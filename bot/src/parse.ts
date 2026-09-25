@@ -96,36 +96,39 @@ ${text.slice(0, 2000)}
   })
 
   const list = models.split(',').map(m => m.trim()).filter(Boolean)
+  const dead = new Set<string>() // 404/400: этой модели у нас нет — в повторных проходах пропускаем
   let limited = false
   let lastError = ''
-  for (const model of list) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+  // до трёх проходов по списку: перегрузка Google обычно длится секунды
+  for (let pass = 0; pass < 3; pass++) {
+    let transient = false
+    for (const model of list) {
+      if (dead.has(model)) continue
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body,
       })
       if (r.ok) {
         const j = await r.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
         const raw = j.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? ''
+        console.log(`gemini ok model=${model} pass=${pass}`)
         return JSON.parse(raw) as Record<string, unknown>
       }
       const err = await r.text()
       lastError = `${model}: ${r.status} ${err.slice(0, 200)}`
       console.warn(`gemini ${lastError}`)
-      if (r.status === 429) {
-        limited = true
-        const wait = retryAfterMs(err)
-        if (attempt === 0 && wait !== null && wait <= 15_000) { await sleep(wait + 300); continue }
-        break
+      if (r.status === 404 || r.status === 400) { dead.add(model); continue }
+      if (r.status === 429 || r.status >= 500) {
+        limited = true // для пользователя это «сервис перегружен, повторите»
+        transient = true
+        // короткий лимит: ждём и пробуем ту же модель ещё раз
+        const wait = r.status === 429 ? retryAfterMs(err) : null
+        if (wait !== null && wait <= 8_000) { await sleep(wait + 300); }
+        continue
       }
-      if (r.status >= 500) {
-        limited = true // для пользователя это тоже «сервис перегружен, повторите»
-        // перегрузка или сбой на стороне Google: один быстрый повтор, потом следующая модель
-        if (attempt === 0) { await sleep(1200); continue }
-        break
-      }
-      if (r.status === 404 || r.status === 400) break // нет такой модели / не подходит — следующая
       throw new Error(`gemini ${lastError}`)
     }
+    if (!transient) break
+    await sleep(2000 * (pass + 1))
   }
   if (limited) throw new LimitError(lastError)
   throw new Error(`gemini: ${lastError || 'нет моделей'}`)
