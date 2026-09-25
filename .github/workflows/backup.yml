@@ -1,0 +1,75 @@
+name: Резервная копия
+
+# Раз в неделю (воскресенье, 06:00 МСК) и по кнопке: дамп базы + все файлы из
+# хранилища, зашифрованные паролем BACKUP_PASSPHRASE, — артефакт на 90 дней.
+# Репозиторий публичный, поэтому без шифрования копию выкладывать нельзя.
+# Как восстановить — docs/backup.md.
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Проверка секретов
+        run: |
+          missing=""
+          [ -n "$SUPABASE_DB_URL" ] || missing="$missing SUPABASE_DB_URL"
+          [ -n "$BACKUP_PASSPHRASE" ] || missing="$missing BACKUP_PASSPHRASE"
+          if [ -n "$missing" ]; then echo "::error::Не заданы секреты:$missing — см. docs/backup.md"; exit 1; fi
+          [ -n "$SUPABASE_SERVICE_KEY" ] || echo "::warning::Нет SUPABASE_SERVICE_KEY — файлы из хранилища не будут скопированы, только база"
+
+      - name: Клиент PostgreSQL 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_dump --version
+
+      - name: Дамп базы
+        run: |
+          mkdir -p backup
+          # public — все данные dashboard; auth — учётные записи (иначе участники не войдут после восстановления)
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges \
+            --schema=public --schema=auth --format=custom --file=backup/db.dump
+          ls -la backup
+
+      - name: Файлы из хранилища
+        if: env.SUPABASE_SERVICE_KEY != ''
+        run: node scripts/backup-storage.mjs backup/storage
+
+      - name: Архив и шифрование
+        run: |
+          stamp=$(date -u +%Y-%m-%d)
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          tar -czf "first-logic-$stamp.tar.gz" -C backup .
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 -o "first-logic-$stamp.tar.gz.gpg" "first-logic-$stamp.tar.gz"
+          rm -f "first-logic-$stamp.tar.gz"
+          ls -la first-logic-*.gpg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: first-logic-backup-${{ env.STAMP }}
+          path: first-logic-*.tar.gz.gpg
+          retention-days: 90
+          if-no-files-found: error
