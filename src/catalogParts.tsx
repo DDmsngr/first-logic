@@ -98,6 +98,7 @@ export function Price({ amount, currency, per, className = '' }: {
 }) {
   const rates = useRates()
   const rub = currency === 'RUB' ? null : toRub(amount, currency, rates.data ?? [])
+  if (amount === 0) return <span className={`dash-muted text-xs ${className}`}>цена не задана</span>
   return (
     <span className={`tabular-nums ${className}`}>
       {fmtMoney(amount, currency)}{per && <span className="dash-muted">/{per}</span>}

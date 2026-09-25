@@ -1,3 +1,4 @@
+import ComponentsIO from '../ComponentsIO'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -32,6 +33,7 @@ export default function Components() {
   const sup = sp.get('sup') ?? ''
   const status = sp.get('status') ?? ''
   const reorder = sp.get('reorder') === '1'
+  const noPrice = sp.get('noprice') === '1'
   const sort = (sp.get('sort') as Sort) || 'name'
   const setParam = (k: string, v: string) => {
     const n = new URLSearchParams(sp)
@@ -48,7 +50,8 @@ export default function Components() {
       && (!cat || (cat === 'none' ? !c.category_id : c.category_id === cat))
       && (!sup || (sup === 'none' ? !c.supplier_id : c.supplier_id === sup))
       && (!status || c.status === status)
-      && (!reorder || needsReorder(c)))
+      && (!reorder || needsReorder(c))
+      && (!noPrice || c.price === 0))
     const by: Record<Sort, (a: Component, b: Component) => number> = {
       name: (a, b) => a.name.localeCompare(b.name, 'ru'),
       price: (a, b) => rub(b) - rub(a),
@@ -56,9 +59,10 @@ export default function Components() {
       updated: (a, b) => b.updated_at.localeCompare(a.updated_at),
     }
     return out.sort(by[sort])
-  }, [all, q, cat, sup, status, reorder, sort, rates.data]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [all, q, cat, sup, status, reorder, noPrice, sort, rates.data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reorderCount = all.filter(needsReorder).length
+  const noPriceCount = all.filter(c => c.price === 0).length
   const stockValue = all.reduce((s, c) => s + Math.max(c.stock, 0) * rub(c), 0)
   const catById = new Map((dicts.data ?? []).map(d => [d.id, d]))
   const supById = new Map((sups.data ?? []).map(s => [s.id, s]))
@@ -74,18 +78,19 @@ export default function Components() {
     onError: e => toast(errMsg(e), 'error'),
   })
 
-  const filtered = q || cat || sup || status || reorder || archived
+  const filtered = q || cat || sup || status || reorder || archived || noPrice
 
   return (
     <>
       <PageHeader title="Компоненты"
-        sub={<>{all.length} позиций · на складе на {fmtMoney(stockValue, 'RUB')}{reorderCount > 0 && <> · <button className="text-[var(--d-warn)] underline" onClick={() => setParam('reorder', reorder ? '' : '1')}>заказать: {reorderCount}</button></>}</>}
+        sub={<>{all.length} позиций · на складе на {fmtMoney(stockValue, 'RUB')}{reorderCount > 0 && <> · <button className="text-[var(--d-warn)] underline" onClick={() => setParam('reorder', reorder ? '' : '1')}>заказать: {reorderCount}</button></>}{noPriceCount > 0 && <> · <button className="underline" onClick={() => setParam('noprice', noPrice ? '' : '1')}>без цены: {noPriceCount}</button></>}</>}
         actions={<>
+          <ComponentsIO />
           <button className="dash-btn dash-btn-ghost" onClick={() => setCats(true)}><Tags className="h-4 w-4" aria-hidden /> Категории</button>
           <button className="dash-btn" onClick={() => setCreating(true)}><Plus className="h-4 w-4" aria-hidden /> Новый компонент</button>
         </>} />
 
-      <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto_auto]">
+      <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto_auto_auto]">
         <input className="dash-input col-span-2 lg:col-span-1" type="search" placeholder="Название, артикул, производитель, место" value={q}
           onChange={e => setParam('q', e.target.value)} aria-label="Поиск по компонентам" />
         <select className="dash-input" value={cat} onChange={e => setParam('cat', e.target.value)} aria-label="Категория">
@@ -111,6 +116,10 @@ export default function Components() {
         <label className="flex min-h-10 items-center gap-2 whitespace-nowrap px-1 text-sm">
           <input type="checkbox" checked={reorder} onChange={e => setParam('reorder', e.target.checked ? '1' : '')} className="accent-[var(--d-accent)]" />
           Заказать
+        </label>
+        <label className="flex min-h-10 items-center gap-2 whitespace-nowrap px-1 text-sm">
+          <input type="checkbox" checked={noPrice} onChange={e => setParam('noprice', e.target.checked ? '1' : '')} className="accent-[var(--d-accent)]" />
+          Без цены
         </label>
         <label className="flex min-h-10 items-center gap-2 whitespace-nowrap px-1 text-sm">
           <input type="checkbox" checked={archived} onChange={e => setParam('archived', e.target.checked ? '1' : '')} className="accent-[var(--d-accent)]" />

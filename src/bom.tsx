@@ -4,7 +4,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Boxes, ChevronRight, Cpu, Pencil, Plus, Trash2 } from 'lucide-react'
 import { addBomItem, deleteBomItem, updateBomItem, type BomPatch } from './catalog'
 import { useWorkspace } from './auth'
-import { MoneyInput, useCosting, useProducts } from './catalogParts'
+import { MoneyInput, useCosting, useProducts, useRates, useSuppliers } from './catalogParts'
+import { buildOrder, orderTotals, toCsv, toText } from './orders'
 import { describeWarning, uniqueWarnings, type Cost, type Line } from './costing'
 import { fmtMoney, fmtQty, parseAmount, type Currency } from './money'
 import { Field, Modal, QueryState, errMsg, useToast } from './ui'
@@ -323,7 +324,7 @@ function AddBomItem({ parent, nextPosition, existing }: { parent: Parent; nextPo
 // ── потребность на партию ───────────────────────────────────────────────────
 
 /** Сколько компонентов нужно на N штук и хватает ли склада. */
-export function BatchNeeds({ parent }: { parent: Parent }) {
+export function BatchNeeds({ parent, title = '' }: { parent: Parent; title?: string }) {
   const c = useCosting()
   const [count, setCount] = useState('1')
   const n = Math.max(1, Math.floor(parseAmount(count) || 1))
@@ -349,6 +350,7 @@ export function BatchNeeds({ parent }: { parent: Parent }) {
         )}
         {rows.length > 0 && <span className="dash-muted">со склада можно собрать: <b className="text-[var(--d-text)] tabular-nums">{canBuild}</b> шт</span>}
       </div>
+      {rows.length > 0 && <OrderExport need={need} sets={n} title={title} />}
       {rows.length === 0 ? <p className="dash-muted text-sm">Состав пуст — считать нечего.</p> : (
         <ul>
           {rows.map(r => (
@@ -394,3 +396,65 @@ export function UsedIn({ target }: { target: { componentId: string } | { assembl
   )
 }
 
+
+// ── выгрузка для заказа ─────────────────────────────────────────────────────
+
+const stamp = () => new Date().toISOString().slice(0, 10)
+
+/** Список закупки на партию: что докупить с учётом склада; CSV для Excel и текст в буфер. */
+function OrderExport({ need, sets, title }: { need: Map<string, number>; sets: number; title: string }) {
+  const c = useCosting()
+  const sups = useSuppliers()
+  const rates = useRates()
+  const toast = useToast()
+  const [onlyShort, setOnlyShort] = useState(true)
+  const [below, setBelow] = useState(false)
+  const [belowN, setBelowN] = useState('5')
+
+  const limit = below ? parseAmount(belowN) : null
+  const supName = (id: string | null) => (id ? sups.data?.find(s => s.id === id)?.name ?? '' : '')
+  const rows = buildOrder(need, c.components, supName, rates.data ?? [], {
+    onlyShort, belowStock: limit !== null && Number.isFinite(limit) ? limit : null,
+  })
+  const t = orderTotals(rows)
+  const heading = `Заказ${title ? `: ${title}` : ''} — ${sets} компл., ${new Date().toLocaleDateString('ru-RU')}`
+
+  const download = () => {
+    const blob = new Blob([toCsv(rows, heading)], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Заказ ${title ? title.replace(/[\\/:*?"<>|]+/g, ' ').trim() + ' ' : ''}${sets} компл ${stamp()}.csv`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(toText(rows, heading)); toast('Список скопирован') }
+    catch { toast('Не удалось скопировать — скачайте CSV', 'error') }
+  }
+
+  return (
+    <div className="mb-4 rounded-lg border border-[var(--d-line)] bg-black/15 p-3" aria-label="Выгрузка для заказа">
+      <div className="mb-2 text-sm font-medium">Выгрузить для заказа на {sets} компл.</div>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" className="accent-[var(--d-accent)]" checked={onlyShort} onChange={e => setOnlyShort(e.target.checked)} />
+          Только то, чего не хватает
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" className="accent-[var(--d-accent)]" checked={below} onChange={e => setBelow(e.target.checked)} />
+          Только с остатком меньше
+          <input className="dash-input !min-h-8 !w-16 text-right" inputMode="decimal" value={belowN} disabled={!below}
+            onChange={e => setBelowN(e.target.value)} aria-label="Порог остатка" /> шт
+        </label>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button className="dash-btn dash-btn-sm" disabled={rows.length === 0} onClick={download}>Скачать CSV (Excel)</button>
+        <button className="dash-btn dash-btn-ghost dash-btn-sm" disabled={rows.length === 0} onClick={() => void copy()}>Скопировать список</button>
+        <span className="dash-muted text-xs tabular-nums">
+          {rows.length === 0 ? 'Под условия ничего не подходит' : <>Позиций: {t.positions} · ≈ {fmtMoney(t.sumRub, 'RUB')}{t.withoutPrice > 0 && ` · без цены: ${t.withoutPrice}`}</>}
+        </span>
+      </div>
+    </div>
+  )
+}

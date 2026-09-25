@@ -146,7 +146,7 @@ export default function ProductDetail() {
 
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Потребность на партию">
         <h2 className="dash-label mb-3">Потребность в компонентах на партию</h2>
-        <BatchNeeds parent={{ productId: p.id }} />
+        <BatchNeeds parent={{ productId: p.id }} title={`${p.name}${p.version ? ' ' + p.version : ''}`} />
       </section>
 
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Задачи изделия">

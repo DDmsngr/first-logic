@@ -95,7 +95,7 @@ export default function AssemblyDetail() {
 
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Потребность на партию">
         <h2 className="dash-label mb-3">Потребность в компонентах</h2>
-        <BatchNeeds parent={{ assemblyId: a.id }} />
+        <BatchNeeds parent={{ assemblyId: a.id }} title={a.name} />
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">

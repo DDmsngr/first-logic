@@ -178,6 +178,13 @@ export async function createComponent(workspaceId: string, c: ComponentInput) {
   return num(check(await supabase.from('fl_components').insert({ workspace_id: workspaceId, ...c }).select().single()) as Component)
 }
 
+/** Все компоненты одним запросом: либо все, либо ни одного. */
+export async function createComponentsBulk(workspaceId: string, items: ComponentInput[]) {
+  if (!items.length) return 0
+  const rows = check(await supabase.from('fl_components').insert(items.map(i => ({ workspace_id: workspaceId, ...i }))).select('id')) as { id: string }[]
+  return rows.length
+}
+
 export async function updateComponent(id: string, patch: Partial<ComponentInput & { archived_at: string | null }>) {
   one(check(await supabase.from('fl_components').update(patch).eq('id', id).select('id')), 'Компонент')
 }
