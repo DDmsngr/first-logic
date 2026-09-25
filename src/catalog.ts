@@ -170,6 +170,11 @@ export async function fetchComponents(workspaceId: string, opts: { archived?: bo
   return (check(await q) as Component[]).map(num)
 }
 
+export async function fetchComponentsByIds(ids: string[]) {
+  if (!ids.length) return []
+  return (check(await supabase.from('fl_components').select('*').in('id', ids).order('name')) as Component[]).map(num)
+}
+
 export async function fetchComponent(id: string) {
   const c = check(await supabase.from('fl_components').select('*').eq('id', id).maybeSingle()) as Component | null
   return c ? num(c) : null
