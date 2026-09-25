@@ -74,6 +74,10 @@ export function pluralTasks(n: number): string {
 export const initials = (name: string) =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join('')
 
+/** «12.5000 USD» → «12,5 USD»: numeric из БД приходит с хвостом нулей. */
+const fmtNum = (v: string | null | undefined) =>
+  (v ?? '—').replace(/-?\d+(\.\d+)?/, n => Number(n).toLocaleString('ru-RU', { maximumFractionDigits: 4 }))
+
 /** Текст события журнала. Собирается из action + meta, которые записал триггер БД. */
 export function describeActivity(e: ActivityEvent, byUser: (id: string | null) => Member | undefined): string {
   const who = byUser(e.actor_id)?.name ?? 'Кто-то'
@@ -99,6 +103,12 @@ export function describeActivity(e: ActivityEvent, byUser: (id: string | null) =
     case 'file.uploaded': return `${who} загрузил(а) файл ${m.filename ?? ''} в ${title}`
     case 'member.invited': return `${who} пригласил(а) ${m.name ?? 'участника'} (${m.role ?? ''})`
     case 'member.joined': return `${m.name ?? who} присоединился(лась) к команде`
+    case 'component.created': return `${who} добавил(а) компонент «${m.title}»`
+    case 'component.price': return `${who} изменил(а) цену «${m.title}»: ${fmtNum(m.from)} → ${fmtNum(m.to)}`
+    case 'component.stock': return `${who} изменил(а) остаток «${m.title}»: ${fmtNum(m.from)} → ${fmtNum(m.to)} ${m.unit ?? ''}`.trimEnd()
+    case 'component.archived': return `${who} убрал(а) в архив компонент «${m.title}»`
+    case 'component.restored': return `${who} вернул(а) из архива компонент «${m.title}»`
+    case 'supplier.created': return `${who} добавил(а) поставщика «${m.title}»`
     default: return `${who}: ${e.action}`
   }
 }

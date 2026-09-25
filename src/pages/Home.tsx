@@ -8,6 +8,9 @@ import type { Message, Task } from '../types'
 import { Avatar, PageHeader, QueryState } from '../ui'
 import { ActivityList } from '../shared'
 import { ClaimButton, DueLabel, PriorityChip, StatusChip } from '../taskParts'
+import { fetchComponents, needsReorder } from '../catalog'
+import { Stock, useRates } from '../catalogParts'
+import { fmtMoney, toRub } from '../money'
 
 const TILES: { key: string; label: string; to: string; color: string }[] = [
   { key: 'total', label: 'Всего', to: '/tasks', color: 'var(--d-text)' },
@@ -66,6 +69,8 @@ export default function Home() {
           ))}
         </div>
       </QueryState>
+
+      <Inventory />
 
       {(blocked.length > 0 || overdue.length > 0) && (
         <div className="mb-5 grid gap-3 md:grid-cols-2">
@@ -168,5 +173,42 @@ function TaskListPanel({ title, tasks, accent }: { title: string; tasks: Task[];
       <h2 className="dash-label mb-2 !text-[var(--d-danger)]">{title} · {tasks.length}</h2>
       <TaskRows tasks={tasks.slice(0, 4)} />
     </section>
+  )
+}
+
+/** Склад: сколько позиций, на какую сумму, что пора заказать. */
+function Inventory() {
+  const { workspace } = useWorkspace()
+  const comps = useQuery({ queryKey: ['components', workspace.id, { archived: false }], queryFn: () => fetchComponents(workspace.id) })
+  const rates = useRates()
+  const all = comps.data ?? []
+  const low = all.filter(needsReorder)
+  const value = all.reduce((s, c) => s + Math.max(c.stock, 0) * (toRub(c.price, c.currency, rates.data ?? []) ?? 0), 0)
+  if (comps.isLoading || comps.error) return null
+  return (
+    <div className="mb-5 grid gap-3 md:grid-cols-[repeat(3,minmax(0,1fr))_2fr]">
+      <Link to="/components" className="dash-card p-4 transition-colors hover:bg-[var(--d-raised)]">
+        <div className="text-2xl font-semibold tabular-nums">{all.length}</div>
+        <div className="dash-muted mt-0.5 text-xs">Компонентов</div>
+      </Link>
+      <Link to="/components?reorder=1" className="dash-card p-4 transition-colors hover:bg-[var(--d-raised)]">
+        <div className="text-2xl font-semibold tabular-nums" style={{ color: low.length ? 'var(--d-warn)' : undefined }}>{low.length}</div>
+        <div className="dash-muted mt-0.5 text-xs">Заказать</div>
+      </Link>
+      <Link to="/components?sort=price" className="dash-card p-4 transition-colors hover:bg-[var(--d-raised)]">
+        <div className="text-2xl font-semibold tabular-nums">{fmtMoney(value, 'RUB')}</div>
+        <div className="dash-muted mt-0.5 text-xs">На складе</div>
+      </Link>
+      <section className="dash-card min-w-0 p-4" aria-label="Пора заказать">
+        <h2 className="dash-label mb-2">Пора заказать · {low.length}</h2>
+        {low.length === 0
+          ? <p className="dash-muted text-sm">Все остатки выше минимума</p>
+          : <ul>{low.slice(0, 4).map(c => (
+              <li key={c.id} className="dash-row flex items-center gap-3 py-1.5 text-sm">
+                <Link to={`/components/${c.id}`} className="min-w-0 flex-1 truncate hover:underline">{c.name}</Link>
+                <Stock c={c} />
+              </li>))}</ul>}
+      </section>
+    </div>
   )
 }

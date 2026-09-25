@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, ExternalLink, FileText, Trash2, Upload } from 'lucide-react'
 import {
-  PAGE, deleteAttachment, fetchActivity, fileLabels, isImage, signedUrl, uploadFile,
+  PAGE, deleteAttachment, fetchActivity, fileLabels, isImage, signedUrl, uploadFile, type UploadTarget,
 } from './api'
 import { useWorkspace } from './auth'
 import { describeActivity, fmtDateTime, fmtSize, timeAgo } from './meta'
@@ -51,7 +51,7 @@ const REFRESH_KEYS = ['attachments', 'tasks', 'task', 'activity', 'notifications
 
 /** Кнопка загрузки: можно выбрать сразу несколько файлов. */
 export function UploadButton({ target, label = 'Прикрепить файлы', onDone }: {
-  target: { taskId?: string; messageId?: string }; label?: string; onDone?: () => void
+  target: UploadTarget; label?: string; onDone?: () => void
 }) {
   const { workspace, userId } = useWorkspace()
   const qc = useQueryClient()
@@ -160,6 +160,8 @@ export function FileList({ files, showTask, labelsFrom }: {
               <div className="dash-muted text-xs">
                 {fmtSize(a.size)} · {byUser(a.uploader_id)?.name ?? '—'} · {fmtDateTime(a.created_at)}
                 {showTask && a.task_id && <> · <Link className="underline" to={`/tasks/${a.task_id}`}>задача</Link></>}
+                {showTask && a.component_id && <> · <Link className="underline" to={`/components/${a.component_id}`}>компонент</Link></>}
+                {showTask && a.supplier_id && <> · <Link className="underline" to={`/suppliers/${a.supplier_id}`}>поставщик</Link></>}
               </div>
             </div>
             <div className="flex gap-1.5">

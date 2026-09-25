@@ -2,7 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Bell, FolderOpen, LayoutDashboard, ListChecks, LogOut, Menu, MessageSquare, Search, Settings, Users, type LucideIcon,
+  Bell, Coins, Cpu, FolderOpen, LayoutDashboard, ListChecks, LogOut, Menu, MessageSquare, Search, Settings, Truck, Users,
+  type LucideIcon,
 } from 'lucide-react'
 import { signOut, useWorkspace } from './auth'
 import { fetchNotifications, fetchUnread } from './api'
@@ -18,12 +19,20 @@ const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: '/', label: 'Обзор', icon: LayoutDashboard, end: true, mobile: true },
       { to: '/tasks', label: 'Задачи', icon: ListChecks, mobile: true },
-      { to: '/messages', label: 'Сообщения', icon: MessageSquare, mobile: true },
+      { to: '/messages', label: 'Сообщения', icon: MessageSquare },
+    ],
+  },
+  {
+    group: 'Производство',
+    items: [
+      { to: '/components', label: 'Компоненты', icon: Cpu, mobile: true },
+      { to: '/suppliers', label: 'Поставщики', icon: Truck },
     ],
   },
   {
     group: 'Справочники',
     items: [
+      { to: '/currency', label: 'Курсы валют', icon: Coins },
       { to: '/files', label: 'Файлы', icon: FolderOpen },
       { to: '/team', label: 'Команда', icon: Users },
     ],

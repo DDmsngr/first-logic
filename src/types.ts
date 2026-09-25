@@ -62,6 +62,8 @@ export interface Attachment {
   workspace_id: string
   task_id: string | null
   message_id: string | null
+  component_id: string | null
+  supplier_id: string | null
   storage_path: string
   filename: string
   mime: string | null

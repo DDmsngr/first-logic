@@ -17,6 +17,11 @@ import Messages from './pages/Messages'
 import SearchPage from './pages/SearchPage'
 import Notifications from './pages/Notifications'
 import Settings from './pages/Settings'
+import Components from './pages/Components'
+import ComponentDetail from './pages/ComponentDetail'
+import Suppliers from './pages/Suppliers'
+import SupplierDetail from './pages/SupplierDetail'
+import CurrencyPage from './pages/Currency'
 
 // Realtime мгновенно инвалидирует кеш, а опрос раз в 20 с — страховка на случай
 // оборванного websocket (корпоративный прокси, спящая вкладка). Вкладка в фоне не опрашивается.
@@ -74,6 +79,11 @@ export default function DashboardApp() {
                 <Route path="search" element={<SearchPage />} />
                 <Route path="notifications" element={<Notifications />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="components" element={<Components />} />
+                <Route path="components/:id" element={<ComponentDetail />} />
+                <Route path="suppliers" element={<Suppliers />} />
+                <Route path="suppliers/:id" element={<SupplierDetail />} />
+                <Route path="currency" element={<CurrencyPage />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
