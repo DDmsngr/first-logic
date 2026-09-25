@@ -1,0 +1,18 @@
+name = "first-logic-bot"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+# Раз в минуту — отправка уведомлений из очереди; раз в час — проверка просрочек.
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+SUPABASE_URL = "https://lfmjeycdxhsiamifnbvv.supabase.co"
+DASHBOARD_URL = "https://ddmsngr.github.io/first-logic"
+GEMINI_MODEL = "gemini-3.6-flash"
+
+# Секреты — только через `npx wrangler secret put <ИМЯ>`, в файлы и git не попадают:
+#   BOT_TOKEN             — токен @first_logic_bot от BotFather
+#   GEMINI                — ключ Gemini API
+#   SUPABASE_SERVICE_KEY  — Secret key (service_role) проекта Supabase
+#   WEBHOOK_SECRET        — любая длинная случайная строка

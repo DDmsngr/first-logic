@@ -10,3 +10,7 @@ dist
 
 test-results/
 playwright-report/
+
+# Cloudflare Worker бота
+.wrangler/
+.dev.vars

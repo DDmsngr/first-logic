@@ -29,3 +29,8 @@ jobs:
 
       - name: Unit-тесты
         run: node --test e2e/*.test.mjs
+
+      - name: Бот — типы и тесты
+        run: |
+          npx tsc -p bot/tsconfig.json
+          node --test bot/test/*.test.mjs
