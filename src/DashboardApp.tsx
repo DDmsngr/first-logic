@@ -31,6 +31,8 @@ import Orders from './pages/Orders'
 import OrderDetail from './pages/OrderDetail'
 import ProductOffer from './pages/ProductOffer'
 import ComponentLabels from './pages/ComponentLabels'
+import StocktakeList from './pages/Stocktake'
+import StocktakeDetail from './pages/StocktakeDetail'
 
 // Realtime мгновенно инвалидирует кеш, а опрос раз в 20 с — страховка на случай
 // оборванного websocket (корпоративный прокси, спящая вкладка). Вкладка в фоне не опрашивается.
@@ -97,6 +99,8 @@ export default function DashboardApp() {
                 <Route path="products/:id" element={<ProductDetail />} />
                 <Route path="products/:id/offer" element={<ProductOffer />} />
                 <Route path="components/labels" element={<ComponentLabels />} />
+                <Route path="stocktake" element={<StocktakeList />} />
+                <Route path="stocktake/:id" element={<StocktakeDetail />} />
                 <Route path="assemblies" element={<Assemblies />} />
                 <Route path="assemblies/:id" element={<AssemblyDetail />} />
                 <Route path="finance" element={<Finance />} />

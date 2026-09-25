@@ -3,7 +3,7 @@ import ComponentsIO, { OrderFromList } from '../ComponentsIO'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, ArrowUpDown, Plus, QrCode, Tags } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ClipboardCheck, Plus, QrCode, Tags } from 'lucide-react'
 import { createComponent, fetchComponents, needsReorder, COMPONENT_STATUSES, type Component } from '../catalog'
 import { useWorkspace } from '../auth'
 import {
@@ -121,6 +121,7 @@ export default function Components() {
         actions={<>
           <OrderFromList items={selected.length ? selected : items} scope={selected.length ? 'selected' : 'list'} />
           <ComponentsIO />
+          <Link className="dash-btn dash-btn-ghost" to="/stocktake"><ClipboardCheck className="h-4 w-4" aria-hidden /> Инвентаризация</Link>
           <button className="dash-btn dash-btn-ghost" onClick={() => setCats(true)}><Tags className="h-4 w-4" aria-hidden /> Категории</button>
           <button className="dash-btn" onClick={() => setCreating(true)}><Plus className="h-4 w-4" aria-hidden /> Новый компонент</button>
         </>} />

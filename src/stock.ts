@@ -227,3 +227,65 @@ export async function createRevision(target: { productId?: string; assemblyId?: 
 export async function deleteRevision(id: string) {
   one(check(await supabase.from('fl_bom_revisions').delete().eq('id', id).select('id')), 'Ревизия')
 }
+
+// ── инвентаризация ──────────────────────────────────────────────────────────
+
+export interface Stocktake {
+  id: string
+  workspace_id: string
+  num: number
+  title: string
+  status: 'draft' | 'applied' | 'cancelled'
+  created_by: string | null
+  created_at: string
+  applied_at: string | null
+  applied_by: string | null
+  lines?: { counted: number | null }[]
+}
+export interface StocktakeLine {
+  id: string
+  stocktake_id: string
+  component_id: string
+  name: string
+  sku: string | null
+  unit: string
+  location: string | null
+  expected: number
+  counted: number | null
+  applied_delta: number | null
+}
+
+export async function fetchStocktakes(workspaceId: string) {
+  return check(await supabase.from('fl_stocktakes').select('*, lines:fl_stocktake_lines(counted)')
+    .eq('workspace_id', workspaceId).order('created_at', { ascending: false }).limit(100)) as Stocktake[]
+}
+
+export async function fetchStocktake(id: string) {
+  const s = check(await supabase.from('fl_stocktakes').select('*').eq('id', id).maybeSingle()) as Stocktake | null
+  if (!s) return null
+  const lines = check(await supabase.from('fl_stocktake_lines').select('*').eq('stocktake_id', id).limit(2000)) as StocktakeLine[]
+  const n = (v: number | null) => (v === null ? null : Number(v))
+  return { ...s, lines: lines.map(l => ({ ...l, expected: Number(l.expected), counted: n(l.counted), applied_delta: n(l.applied_delta) })) }
+}
+
+export async function startStocktake(workspaceId: string, o: { category?: string; location?: string; title?: string }) {
+  return check(await supabase.rpc('fl_stocktake_start', {
+    p_ws: workspaceId, p_category: o.category || null, p_location: o.location?.trim() || null, p_title: o.title?.trim() ?? '',
+  })) as string
+}
+
+export async function setCounted(lineId: string, value: number | null) {
+  one(check(await supabase.from('fl_stocktake_lines').update({ counted: value }).eq('id', lineId).select('id')), 'Строка (инвентаризация уже закрыта?)')
+}
+
+export async function applyStocktake(id: string) {
+  return check(await supabase.rpc('fl_stocktake_apply', { p_id: id })) as { changed: number; same: number; moved: number }
+}
+
+export async function cancelStocktake(id: string) {
+  one(check(await supabase.from('fl_stocktakes').update({ status: 'cancelled' }).eq('id', id).select('id')), 'Инвентаризация')
+}
+
+export async function deleteStocktake(id: string) {
+  one(check(await supabase.from('fl_stocktakes').delete().eq('id', id).select('id')), 'Инвентаризация (применённую удалить нельзя)')
+}
