@@ -181,22 +181,25 @@ function PreviewRow({ r, skipped }: { r: ImportRow; skipped: boolean }) {
  * поставщик, категория, «Заказать», «Без цены»), оставляет позиции с малым остатком
  * и считает, сколько докупить, чтобы довести остаток до нужного.
  */
-export function OrderFromList({ items }: { items: Component[] }) {
+export function OrderFromList({ items, scope = 'list' }: { items: Component[]; scope?: 'list' | 'selected' }) {
   const [open, setOpen] = useState(false)
   return (
     <>
       <button className="dash-btn dash-btn-ghost" onClick={() => setOpen(true)} disabled={items.length === 0}
-        title="Выгрузить список для заказа: то, что показано сейчас"><FileDown className="h-4 w-4" aria-hidden /> Выгрузить</button>
-      {open && <OrderModal items={items} onClose={() => setOpen(false)} />}
+        title={scope === 'selected' ? 'Выгрузить только отмеченные галочками' : 'Выгрузить список для заказа: то, что показано сейчас'}>
+        <FileDown className="h-4 w-4" aria-hidden /> {scope === 'selected' ? `Выгрузить выбранные (${items.length})` : 'Выгрузить'}
+      </button>
+      {open && <OrderModal items={items} scope={scope} onClose={() => setOpen(false)} />}
     </>
   )
 }
 
-function OrderModal({ items, onClose }: { items: Component[]; onClose: () => void }) {
+function OrderModal({ items, scope, onClose }: { items: Component[]; scope: 'list' | 'selected'; onClose: () => void }) {
   const sups = useSuppliers()
   const rates = useRates()
   const toast = useToast()
-  const [below, setBelow] = useState(true)
+  // выбрали позиции руками — порог остатка по умолчанию не применяем: человек уже решил, что заказывать
+  const [below, setBelow] = useState(scope === 'list')
   const [belowN, setBelowN] = useState('5')
   const [target, setTarget] = useState('10')
 
@@ -208,7 +211,7 @@ function OrderModal({ items, onClose }: { items: Component[]; onClose: () => voi
     onlyShort: true, belowStock: limit !== null && Number.isFinite(limit) ? limit : null,
   }) : []
   const tot = orderTotals(rows)
-  const heading = `Заказ: довести остаток до ${target} шт — ${new Date().toLocaleDateString('ru-RU')}`
+  const heading = `Заказ${scope === 'selected' ? ' (выбранные позиции)' : ''}: довести остаток до ${target} шт — ${new Date().toLocaleDateString('ru-RU')}`
 
   const copy = async () => {
     try { await navigator.clipboard.writeText(toText(rows, heading)); toast('Список скопирован') }
@@ -218,7 +221,9 @@ function OrderModal({ items, onClose }: { items: Component[]; onClose: () => voi
   return (
     <Modal open onClose={onClose} title="Выгрузка для заказа">
       <div className="space-y-3">
-        <p className="dash-muted text-sm">Берутся позиции, которые сейчас показаны в списке ({items.length}). Чтобы выгрузить только одного поставщика или категорию, сначала выберите их в фильтрах списка.</p>
+        <p className="dash-muted text-sm">{scope === 'selected'
+          ? <>Берутся <b>отмеченные галочками</b> позиции ({items.length}).</>
+          : <>Берутся позиции, которые сейчас показаны в списке ({items.length}). Чтобы выгрузить только часть, отметьте нужные галочками или выберите поставщика в фильтрах.</>}</p>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-[var(--d-accent)]" checked={below} onChange={e => setBelow(e.target.checked)} />
           Только с остатком меньше
