@@ -7,6 +7,9 @@ import { fetchAttachments } from '../api'
 import { useWorkspace } from '../auth'
 import { Price, Stock, SupplierForm } from '../catalogParts'
 import { ActivityList, FileList, UploadButton } from '../shared'
+import { ExpenseModal, ExpenseTable, useExpenses } from '../financeParts'
+import { fmtMoney } from '../money'
+import type { Expense } from '../catalog'
 import { PageHeader, QueryState, errMsg, useToast } from '../ui'
 
 /** Ссылка на Telegram из «@name», «name» или полного адреса. */
@@ -19,6 +22,8 @@ export default function SupplierDetail() {
   const qc = useQueryClient()
   const toast = useToast()
   const [editing, setEditing] = useState(false)
+  const [expense, setExpense] = useState<Expense | 'new' | null>(null)
+  const purchases = useExpenses({ supplierId: id })
 
   const q = useQuery({ queryKey: ['supplier', id], queryFn: () => fetchSupplier(id) })
   const comps = useQuery({ queryKey: ['components', workspace.id, { supplier: id }], queryFn: () => fetchComponents(workspace.id, { supplierId: id }) })
@@ -86,6 +91,18 @@ export default function SupplierDetail() {
           </ul>
         </QueryState>
       </section>
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="История закупок">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="dash-label">История закупок · {fmtMoney((purchases.data ?? []).reduce((a, e) => a + e.amount_rub, 0), 'RUB')}</h2>
+          <button className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => setExpense('new')}>+ Расход</button>
+        </div>
+        <QueryState loading={purchases.isLoading} error={purchases.error} onRetry={() => purchases.refetch()} empty={purchases.data?.length === 0}
+          emptyText="Расходов с этим поставщиком нет">
+          <ExpenseTable items={purchases.data ?? []} onOpen={e => setExpense(e)} compact />
+        </QueryState>
+      </section>
+      <ExpenseModal open={expense !== null} expense={expense === 'new' ? null : expense} onClose={() => setExpense(null)} preset={{ supplier_id: s.id }} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="dash-card min-w-0 p-4" aria-label="Документы">

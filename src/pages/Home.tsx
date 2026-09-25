@@ -9,7 +9,11 @@ import { Avatar, PageHeader, QueryState } from '../ui'
 import { ActivityList } from '../shared'
 import { ClaimButton, DueLabel, PriorityChip, StatusChip } from '../taskParts'
 import { fetchComponents, needsReorder } from '../catalog'
-import { Stock, useDicts, useProducts, useRates } from '../catalogParts'
+import { Stock, useCosting, useDicts, useProducts, useRates } from '../catalogParts'
+import { sellingPrice } from '../catalog'
+import { unitEconomics } from '../costing'
+import { periodRange, inRange } from '../finance'
+import { useExpenses } from '../financeParts'
 import { fmtMoney, toRub } from '../money'
 
 const TILES: { key: string; label: string; to: string; color: string }[] = [
@@ -71,6 +75,7 @@ export default function Home() {
       </QueryState>
 
       <ProductsStrip />
+      <FinanceStrip />
       <Inventory />
 
       {(blocked.length > 0 || overdue.length > 0) && (
@@ -232,5 +237,39 @@ function ProductsStrip() {
       ))}
       {none > 0 && <Link to="/products?status=none" className="dash-muted text-sm hover:underline"><b className="tabular-nums">{none}</b> без статуса</Link>}
     </section>
+  )
+}
+
+/** Деньги одной строкой: расходы месяца, плановая выручка и маржа. */
+function FinanceStrip() {
+  const expenses = useExpenses()
+  const products = useProducts()
+  const costing = useCosting()
+  const rates = useRates()
+  if (expenses.isLoading || expenses.error) return null
+  const month = periodRange('month')
+  const spent = (expenses.data ?? []).filter(e => inRange(e.spent_on, month)).reduce((s, e) => s + e.amount_rub, 0)
+  let revenue = 0, profit = 0
+  for (const p of products.data ?? []) {
+    const price = sellingPrice(p)
+    const priceRub = price === null ? null : toRub(price, p.price_currency, rates.data ?? [])
+    const u = unitEconomics(costing.k?.product(p.id).total ?? 0, p, priceRub)
+    revenue += (u.price ?? 0) * p.planned_qty
+    profit += (u.profit ?? 0) * p.planned_qty
+  }
+  const tiles = [
+    { label: 'Расходы за месяц', value: fmtMoney(spent, 'RUB'), to: '/finance?period=month' },
+    { label: 'Плановая выручка', value: fmtMoney(revenue, 'RUB'), to: '/finance' },
+    { label: 'Потенциальная маржа', value: revenue ? `${((profit / revenue) * 100).toFixed(1)}%` : '—', sub: revenue ? fmtMoney(profit, 'RUB') : 'нет плана продаж', to: '/finance' },
+  ]
+  return (
+    <div className="mb-5 grid gap-3 sm:grid-cols-3">
+      {tiles.map(t => (
+        <Link key={t.label} to={t.to} className="dash-card p-4 transition-colors hover:bg-[var(--d-raised)]">
+          <div className="text-2xl font-semibold tabular-nums">{t.value}</div>
+          <div className="dash-muted mt-0.5 text-xs">{t.label}{t.sub && ` · ${t.sub}`}</div>
+        </Link>
+      ))}
+    </div>
   )
 }

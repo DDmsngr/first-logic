@@ -118,6 +118,9 @@ export function describeActivity(e: ActivityEvent, byUser: (id: string | null) =
     case 'bom.added': return `${who} добавил(а) в «${m.title}»: ${m.child} × ${fmtNum(m.to)}`
     case 'bom.removed': return `${who} убрал(а) из «${m.title}»: ${m.child}`
     case 'bom.qty': return `${who} изменил(а) количество ${m.child} в «${m.title}»: ${fmtNum(m.from)} → ${fmtNum(m.to)}`
+    case 'expense.created': return `${who} добавил(а) расход «${m.title}» на ${fmtNum(m.to)} ₽${m.product ? ` (${m.product})` : ''}`
+    case 'expense.edited': return `${who} изменил(а) расход «${m.title}»: ${fmtNum(m.to)} ₽`
+    case 'expense.deleted': return `${who} удалил(а) расход «${m.title}»`
     case 'supplier.created': return `${who} добавил(а) поставщика «${m.title}»`
     default: return `${who}: ${e.action}`
   }

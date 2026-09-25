@@ -193,6 +193,11 @@ export interface Product {
   actual_price: number | null
   price_currency: Currency
   notes: string
+  manufacturing_cost: number
+  additional_cost: number
+  overhead_pct: number
+  cost_override: number | null
+  planned_qty: number
   created_at: string
   updated_at: string
   archived_at: string | null
@@ -202,7 +207,11 @@ export type ProductInput = Pick<Product,
   'name' | 'sku' | 'version' | 'status_id' | 'description' | 'specs' | 'planned_price' | 'actual_price' | 'price_currency' | 'notes'>
 
 const numOrNull = (v: number | string | null) => (v === null ? null : Number(v))
-const prod = (p: Product): Product => ({ ...p, planned_price: numOrNull(p.planned_price), actual_price: numOrNull(p.actual_price) })
+const prod = (p: Product): Product => ({
+  ...p, planned_price: numOrNull(p.planned_price), actual_price: numOrNull(p.actual_price),
+  manufacturing_cost: Number(p.manufacturing_cost ?? 0), additional_cost: Number(p.additional_cost ?? 0),
+  overhead_pct: Number(p.overhead_pct ?? 0), cost_override: numOrNull(p.cost_override ?? null), planned_qty: Number(p.planned_qty ?? 0),
+})
 
 export async function fetchProducts(workspaceId: string, archived = false) {
   let q = supabase.from('fl_products').select('*').eq('workspace_id', workspaceId).order('name')
@@ -219,7 +228,9 @@ export async function createProduct(workspaceId: string, p: ProductInput) {
   return prod(check(await supabase.from('fl_products').insert({ workspace_id: workspaceId, ...p }).select().single()) as Product)
 }
 
-export async function updateProduct(id: string, patch: Partial<ProductInput & { archived_at: string | null }>) {
+export type ProductCostPatch = Partial<Pick<Product, 'manufacturing_cost' | 'additional_cost' | 'overhead_pct' | 'cost_override' | 'planned_qty'>>
+
+export async function updateProduct(id: string, patch: Partial<ProductInput & { archived_at: string | null }> & ProductCostPatch) {
   one(check(await supabase.from('fl_products').update(patch).eq('id', id).select('id')), 'Изделие')
 }
 
@@ -314,4 +325,53 @@ export async function deleteBomItem(id: string) {
 /** Все компоненты, включая архивные: для расчёта состава. */
 export async function fetchAllComponents(workspaceId: string) {
   return (check(await supabase.from('fl_components').select('*').eq('workspace_id', workspaceId).order('name')) as Component[]).map(num)
+}
+
+// ── расходы ─────────────────────────────────────────────────────────────────
+
+export interface Expense {
+  id: string
+  workspace_id: string
+  spent_on: string
+  category_id: string | null
+  description: string
+  amount: number
+  currency: Currency
+  rate_rub: number
+  amount_rub: number
+  supplier_id: string | null
+  product_id: string | null
+  component_id: string | null
+  note: string
+  source: 'dashboard' | 'telegram'
+  created_by: string | null
+  created_at: string
+}
+
+export type ExpenseInput = Pick<Expense,
+  'spent_on' | 'category_id' | 'description' | 'amount' | 'currency' | 'rate_rub' | 'supplier_id' | 'product_id' | 'component_id' | 'note'>
+
+const exp = (e: Expense): Expense => ({ ...e, amount: Number(e.amount), rate_rub: Number(e.rate_rub), amount_rub: Number(e.amount_rub) })
+
+export async function fetchExpenses(workspaceId: string, opts: { supplierId?: string; productId?: string; componentId?: string } = {}) {
+  let q = supabase.from('fl_expenses').select('*').eq('workspace_id', workspaceId)
+    .order('spent_on', { ascending: false }).order('created_at', { ascending: false }).limit(2000)
+  if (opts.supplierId) q = q.eq('supplier_id', opts.supplierId)
+  if (opts.productId) q = q.eq('product_id', opts.productId)
+  if (opts.componentId) q = q.eq('component_id', opts.componentId)
+  return (check(await q) as Expense[]).map(exp)
+}
+
+export async function createExpense(workspaceId: string, e: ExpenseInput) {
+  return exp(check(await supabase.from('fl_expenses').insert({ workspace_id: workspaceId, ...e }).select().single()) as Expense)
+}
+
+export async function updateExpense(id: string, patch: Partial<ExpenseInput>) {
+  one(check(await supabase.from('fl_expenses').update(patch).eq('id', id).select('id')), 'Расход')
+}
+
+export async function deleteExpense(id: string) {
+  const atts = check(await supabase.from('ws_attachments').select('storage_path').eq('expense_id', id)) as { storage_path: string }[]
+  one(check(await supabase.from('fl_expenses').delete().eq('id', id).select('id')), 'Расход')
+  if (atts.length) await supabase.storage.from('ws-files').remove(atts.map(a => a.storage_path))
 }

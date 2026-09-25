@@ -98,6 +98,7 @@ export function WorkspaceProvider({ session, children }: { session: Session; chi
     on('fl_products', ['products', 'product', 'activity'])
     on('fl_assemblies', ['assemblies', 'assembly', 'activity'])
     on('fl_bom_items', ['bom', 'activity'])
+    on('fl_expenses', ['expenses', 'activity'])
     ch.subscribe()
     return () => { void supabase.removeChannel(ch) }
   }, [wsId, qc])

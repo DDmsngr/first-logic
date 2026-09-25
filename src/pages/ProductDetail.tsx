@@ -7,6 +7,8 @@ import { fetchAttachments, fetchTasks } from '../api'
 import { useWorkspace } from '../auth'
 import { Price, ProductForm, SpecsEditor, useCosting, useDicts, useRates } from '../catalogParts'
 import { BatchNeeds, BomEditor } from '../bom'
+import { EconomicsCard } from '../economics'
+import { unitEconomics } from '../costing'
 import { fmtMoney, toRub } from '../money'
 import Md from '../Md'
 import { ActivityList, FileList, UploadButton } from '../shared'
@@ -58,6 +60,7 @@ export default function ProductDetail() {
   const bomLines = cost?.lines.length ?? 0
   const price = sellingPrice(p)
   const priceRub = price === null ? null : toRub(price, p.price_currency, rates.data ?? [])
+  const econ = unitEconomics(material ?? 0, p, priceRub)
   const all = tasks.data ?? []
   const open = all.filter(t => t.status !== 'done')
   const done = all.filter(t => t.status === 'done')
@@ -97,7 +100,11 @@ export default function ProductDetail() {
             <div className="flex items-start justify-between gap-2"><dt className="dash-muted">Плановая</dt><dd className="text-right">{p.planned_price === null ? '—' : <Price amount={p.planned_price} currency={p.price_currency} />}</dd></div>
             <div className="flex items-start justify-between gap-2"><dt className="dash-muted">Фактическая</dt><dd className="text-right font-semibold">{p.actual_price === null ? '—' : <Price amount={p.actual_price} currency={p.price_currency} />}</dd></div>
           </dl>
-          <MaterialCost material={material} priceRub={priceRub} empty={!bomLines} />
+          <div className="mt-3 space-y-1 border-t border-[var(--d-line)] pt-2 text-sm">
+            <div className="flex justify-between gap-2"><span className="dash-muted">Себестоимость</span><b className="tabular-nums">{fmtMoney(econ.total, 'RUB')}</b></div>
+            <div className="flex justify-between gap-2"><span className="dash-muted">Маржа</span>
+              <b className={`tabular-nums ${econ.margin === null ? '' : econ.margin >= 0 ? 'text-[var(--d-ok)]' : 'text-[var(--d-danger)]'}`}>{econ.margin === null ? '—' : `${econ.margin.toFixed(1)}%`}</b></div>
+          </div>
         </section>
 
         <section className="dash-card p-4 md:col-span-2" aria-label="Характеристики">
@@ -129,6 +136,8 @@ export default function ProductDetail() {
           {p.notes && <div><h2 className="dash-label mb-1.5">Заметки</h2><Md>{p.notes}</Md></div>}
         </section>
       )}
+
+      <div className="mb-4"><EconomicsCard product={p} u={econ} hasBom={bomLines > 0} /></div>
 
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Состав изделия">
         <h2 className="dash-label mb-3">Состав (BOM)</h2>
@@ -198,21 +207,3 @@ export default function ProductDetail() {
   )
 }
 
-/** Материалы по BOM и их доля в цене. Полная себестоимость и маржа — в финансах. */
-function MaterialCost({ material, priceRub, empty }: { material: number | null; priceRub: number | null; empty: boolean }) {
-  if (empty) return <p className="dash-muted mt-3 border-t border-[var(--d-line)] pt-2 text-xs">Добавьте состав ниже — посчитаем стоимость материалов.</p>
-  const share = material !== null && priceRub ? (material / priceRub) * 100 : null
-  return (
-    <div className="mt-3 space-y-1.5 border-t border-[var(--d-line)] pt-2 text-sm">
-      <div className="flex items-start justify-between gap-2"><span className="dash-muted">Материалы (BOM)</span><b className="tabular-nums">{fmtMoney(material, 'RUB')}</b></div>
-      {share !== null && (
-        <>
-          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--d-line)]" aria-hidden>
-            <div className="h-full rounded-full" style={{ width: `${Math.min(share, 100)}%`, background: share > 100 ? 'var(--d-danger)' : 'var(--d-accent)' }} />
-          </div>
-          <div className={`text-xs ${share > 100 ? 'text-[var(--d-danger)]' : 'dash-muted'}`}>материалы — {share.toFixed(0)}% цены продажи</div>
-        </>
-      )}
-    </div>
-  )
-}

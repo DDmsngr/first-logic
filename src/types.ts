@@ -66,6 +66,7 @@ export interface Attachment {
   component_id: string | null
   product_id: string | null
   assembly_id: string | null
+  expense_id: string | null
   supplier_id: string | null
   storage_path: string
   filename: string

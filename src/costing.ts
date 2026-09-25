@@ -177,3 +177,47 @@ export function uniqueWarnings(ws: Warning[]) {
   const seen = new Set<string>()
   return ws.filter(w => { const k = describeWarning(w); if (seen.has(k)) return false; seen.add(k); return true })
 }
+
+// ── полная себестоимость и маржа ────────────────────────────────────────────
+
+export interface CostParams {
+  manufacturing_cost: number
+  additional_cost: number
+  overhead_pct: number
+  cost_override: number | null
+}
+
+export interface UnitEconomics {
+  material: number
+  manufacturing: number
+  additional: number
+  overhead: number
+  /** расчёт по формуле */
+  calculated: number
+  override: number | null
+  /** что идёт в прибыль: ручная, если задана, иначе расчёт */
+  total: number
+  price: number | null
+  profit: number | null
+  /** доля прибыли в цене, % */
+  margin: number | null
+  /** наценка к себестоимости, % */
+  markup: number | null
+}
+
+/**
+ * Себестоимость = материалы + производство + прочее + накладные% × (материалы + производство).
+ * Прибыль = цена − себестоимость; маржа = прибыль / цена; наценка = прибыль / себестоимость.
+ */
+export function unitEconomics(material: number, p: CostParams, priceRub: number | null): UnitEconomics {
+  const overhead = (p.overhead_pct / 100) * (material + p.manufacturing_cost)
+  const calculated = material + p.manufacturing_cost + p.additional_cost + overhead
+  const total = p.cost_override ?? calculated
+  const profit = priceRub === null ? null : priceRub - total
+  return {
+    material, manufacturing: p.manufacturing_cost, additional: p.additional_cost, overhead,
+    calculated, override: p.cost_override, total, price: priceRub, profit,
+    margin: profit === null || !priceRub ? null : (profit / priceRub) * 100,
+    markup: profit === null || !total ? null : (profit / total) * 100,
+  }
+}
