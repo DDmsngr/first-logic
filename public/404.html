@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <title>First Logic</title>
+    <script>
+      // GitHub Pages отдаёт 404.html на неизвестные пути. Переписываем путь в query
+      // и отправляем на index.html, где скрипт вернёт его через history.replaceState.
+      var keep = 1; // сегмент /first-logic
+      var l = window.location;
+      l.replace(
+        l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+        l.pathname.split('/').slice(0, 1 + keep).join('/') + '/?/' +
+        l.pathname.slice(1).split('/').slice(keep).join('/').replace(/&/g, '~and~') +
+        (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+        l.hash
+      );
+    </script>
+  </head>
+</html>

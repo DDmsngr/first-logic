@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+/* First Logic — тёмная инженерная тема. Один холодный акцент (действие и
+   выбранное состояние), статусные цвета приглушены, чтобы не спорить с ним. */
+@layer base {
+  :root {
+    --d-bg: #0a0d11;
+    --d-surface: #10151b;
+    --d-raised: #161d25;
+    --d-line: #222b35;
+    --d-line-strong: #2f3b48;
+    --d-text: #e3e9ef;
+    --d-muted: #8795a3;
+    --d-accent: #5ec4e6;
+    --d-accent-hover: #7fd3ef;
+    --d-accent-glow: rgba(94, 196, 230, 0.18);
+    --d-on-accent: #061016;
+    --d-primary: var(--d-accent);
+    --d-primary-hover: var(--d-accent-hover);
+    --d-tint: var(--d-accent);
+    --d-ok: #5fd08f;
+    --d-warn: #f2b94b;
+    --d-info: var(--d-accent);
+    --d-danger: #f06a6a;
+    --d-danger-line: rgba(240, 106, 106, 0.4);
+    --d-danger-bg: #1f1316;
+    color-scheme: dark;
+  }
+
+  html, body { background: var(--d-bg); color: var(--d-text); }
+}
+
+@layer components {
+  .dash {
+    background-color: var(--d-bg);
+    /* инженерная сетка: мелкий шаг 24px и крупный 120px, затухает к низу экрана */
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(94, 196, 230, 0.07), transparent 70%),
+      linear-gradient(rgba(94, 196, 230, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(94, 196, 230, 0.035) 1px, transparent 1px),
+      linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+    background-size: 100% 100%, 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+    background-attachment: fixed;
+    color: var(--d-text);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    min-height: 100dvh;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  .dash *:focus-visible {
+    outline: 2px solid var(--d-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  .dash-mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+  .dash-card {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 40%), var(--d-surface);
+    border: 1px solid var(--d-line);
+    border-radius: 8px;
+  }
+  .dash-muted { color: var(--d-muted); }
+  .dash-label {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--d-muted); font-weight: 500;
+  }
+
+  .dash-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 38px; padding: 0 14px; border-radius: 6px; font-size: 14px; font-weight: 600;
+    background: var(--d-accent); color: var(--d-on-accent); border: 1px solid transparent;
+    transition: background .15s, box-shadow .15s, opacity .15s; cursor: pointer;
+  }
+  .dash-btn:hover:not(:disabled) { background: var(--d-accent-hover); box-shadow: 0 0 0 4px var(--d-accent-glow); }
+  .dash-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .dash-btn-ghost { background: transparent; color: var(--d-text); border-color: var(--d-line); }
+  .dash-btn-ghost:hover:not(:disabled) { background: var(--d-raised); border-color: var(--d-line-strong); box-shadow: none; }
+  .dash-btn-sm { min-height: 30px; padding: 0 10px; font-size: 13px; border-radius: 5px; }
+
+  .dash-tab-active { background: var(--d-accent); color: var(--d-on-accent); }
+
+  .dash-input {
+    width: 100%; min-height: 40px; padding: 0 12px; border-radius: 6px; font-size: 14px;
+    background: #080b0e; color: var(--d-text); border: 1px solid var(--d-line);
+  }
+  textarea.dash-input { padding: 10px 12px; min-height: 84px; resize: vertical; }
+  .dash-input::placeholder { color: #5b6773; }
+  .dash-input:focus { border-color: var(--d-accent); outline: none; box-shadow: 0 0 0 3px var(--d-accent-glow); }
+  .dash-input:disabled { opacity: .55; cursor: not-allowed; }
+  select.dash-input { appearance: none; padding-right: 28px; background-image: linear-gradient(45deg, transparent 50%, var(--d-muted) 50%), linear-gradient(135deg, var(--d-muted) 50%, transparent 50%); background-position: calc(100% - 15px) 17px, calc(100% - 10px) 17px; background-size: 5px 5px; background-repeat: no-repeat; }
+
+  .dash-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; border-radius: 4px;
+    font-size: 12px; font-weight: 500; border: 1px solid var(--d-line); color: var(--d-muted); white-space: nowrap;
+  }
+
+  /* индикатор состояния: точка со слабым свечением своего цвета (через currentColor) */
+  .dash-led { display: inline-block; width: 7px; height: 7px; border-radius: 999px; background: currentColor; box-shadow: 0 0 8px currentColor; }
+
+  .dash-row { border-bottom: 1px solid rgba(34, 43, 53, .8); }
+  .dash-row:last-child { border-bottom: 0; }
+
+  .dash-md { font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+  .dash-md > *:first-child { margin-top: 0; }
+  .dash-md > *:last-child { margin-bottom: 0; }
+  .dash-md p { margin: 0.35em 0; }
+  .dash-md ul, .dash-md ol { margin: 0.35em 0; padding-left: 1.3em; }
+  .dash-md ul { list-style: disc; }
+  .dash-md ol { list-style: decimal; }
+  .dash-md a { color: var(--d-accent); text-decoration: underline; }
+  .dash-md code { background: rgba(0,0,0,.4); padding: 1px 5px; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; }
+  .dash-md pre { background: rgba(0,0,0,.4); padding: 10px 12px; border-radius: 6px; overflow-x: auto; margin: 0.5em 0; }
+  .dash-md pre code { background: none; padding: 0; }
+  .dash-md blockquote { border-left: 2px solid var(--d-line-strong); margin: 0.4em 0; padding-left: 10px; color: var(--d-muted); }
+  .dash-md h1, .dash-md h2, .dash-md h3 { font-weight: 600; margin: 0.6em 0 0.25em; }
+  .dash-md h1 { font-size: 1.25em; } .dash-md h2 { font-size: 1.12em; } .dash-md h3 { font-size: 1.02em; }
+  .dash-md table { border-collapse: collapse; margin: 0.5em 0; }
+  .dash-md th, .dash-md td { border: 1px solid var(--d-line); padding: 3px 8px; }
+  .dash-md hr { border: 0; border-top: 1px solid var(--d-line); margin: 0.6em 0; }
+
+  .dash-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .dash-safe-top { padding-top: env(safe-area-inset-top); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dash * { transition: none !important; animation: none !important; }
+  }
+}
