@@ -4,6 +4,7 @@
 
 import { Db, type Ctx, type Digest } from './db'
 import { ASK_TITLE, DONE_TITLE, canAttach, describe, fillFromText, needsConfirm, normalize, type Intent, type TgFile } from './intents'
+import { handleApi } from './api'
 import { LimitError, parseMessage, type Audio } from './parse'
 import { isGroupChat, routeText } from './route'
 import { Tg, esc, type TgCallback, type TgMessage, type TgUpdate } from './tg'
@@ -17,6 +18,7 @@ export interface Env {
   WEBHOOK_SECRET: string
   DASHBOARD_URL: string
   BOT_USERNAME: string
+  ALLOWED_ORIGINS?: string
 }
 
 const HELP = `Я — вход в dashboard First Logic. Пишите обычным текстом:
@@ -43,6 +45,8 @@ const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/M
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url)
+    const api = await handleApi(req, env)
+    if (api) return api
     if (req.method === 'GET' && url.pathname === '/setup') {
       // одноразовая настройка вебхука: ключ — тот же WEBHOOK_SECRET
       if (url.searchParams.get('key') !== env.WEBHOOK_SECRET) return new Response('forbidden', { status: 403 })

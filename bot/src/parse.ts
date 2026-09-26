@@ -112,8 +112,11 @@ ${message}` }]
  * найдена (404) — сразу к следующей.
  */
 export async function parseMessage(text: string, ctx: Ctx, today: string, apiKey: string, models: string, audio?: Audio) {
-  const body = buildRequest(text, ctx, today, audio)
+  return generateJson(buildRequest(text, ctx, today, audio), apiKey, models)
+}
 
+/** Общий вызов Gemini с перебором моделей и повторами; body — готовый JSON запроса. */
+export async function generateJson(body: string, apiKey: string, models: string) {
   const list = models.split(',').map(m => m.trim()).filter(Boolean)
   const dead = new Set<string>() // 404/400: этой модели у нас нет — в повторных проходах пропускаем
   let limited = false
