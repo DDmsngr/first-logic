@@ -227,3 +227,167 @@ export async function createRevision(target: { productId?: string; assemblyId?: 
 export async function deleteRevision(id: string) {
   one(check(await supabase.from('fl_bom_revisions').delete().eq('id', id).select('id')), 'Ревизия')
 }
+
+// ── инвентаризация ──────────────────────────────────────────────────────────
+
+export interface Stocktake {
+  id: string
+  workspace_id: string
+  num: number
+  title: string
+  status: 'draft' | 'applied' | 'cancelled'
+  created_by: string | null
+  created_at: string
+  applied_at: string | null
+  applied_by: string | null
+  lines?: { counted: number | null }[]
+}
+export interface StocktakeLine {
+  id: string
+  stocktake_id: string
+  component_id: string
+  name: string
+  sku: string | null
+  unit: string
+  location: string | null
+  expected: number
+  counted: number | null
+  applied_delta: number | null
+}
+
+export async function fetchStocktakes(workspaceId: string) {
+  return check(await supabase.from('fl_stocktakes').select('*, lines:fl_stocktake_lines(counted)')
+    .eq('workspace_id', workspaceId).order('created_at', { ascending: false }).limit(100)) as Stocktake[]
+}
+
+export async function fetchStocktake(id: string) {
+  const s = check(await supabase.from('fl_stocktakes').select('*').eq('id', id).maybeSingle()) as Stocktake | null
+  if (!s) return null
+  const lines = check(await supabase.from('fl_stocktake_lines').select('*').eq('stocktake_id', id).limit(2000)) as StocktakeLine[]
+  const n = (v: number | null) => (v === null ? null : Number(v))
+  return { ...s, lines: lines.map(l => ({ ...l, expected: Number(l.expected), counted: n(l.counted), applied_delta: n(l.applied_delta) })) }
+}
+
+export async function startStocktake(workspaceId: string, o: { category?: string; location?: string; title?: string }) {
+  return check(await supabase.rpc('fl_stocktake_start', {
+    p_ws: workspaceId, p_category: o.category || null, p_location: o.location?.trim() || null, p_title: o.title?.trim() ?? '',
+  })) as string
+}
+
+export async function setCounted(lineId: string, value: number | null) {
+  one(check(await supabase.from('fl_stocktake_lines').update({ counted: value }).eq('id', lineId).select('id')), 'Строка (инвентаризация уже закрыта?)')
+}
+
+export async function applyStocktake(id: string) {
+  return check(await supabase.rpc('fl_stocktake_apply', { p_id: id })) as { changed: number; same: number; moved: number }
+}
+
+export async function cancelStocktake(id: string) {
+  one(check(await supabase.from('fl_stocktakes').update({ status: 'cancelled' }).eq('id', id).select('id')), 'Инвентаризация')
+}
+
+export async function deleteStocktake(id: string) {
+  one(check(await supabase.from('fl_stocktakes').delete().eq('id', id).select('id')), 'Инвентаризация (применённую удалить нельзя)')
+}
+
+// ── резервы ─────────────────────────────────────────────────────────────────
+
+export interface Reservation {
+  id: string
+  workspace_id: string
+  product_id: string | null
+  assembly_id: string | null
+  title: string
+  units: number
+  note: string
+  status: 'active' | 'released' | 'fulfilled'
+  created_by: string | null
+  created_at: string
+}
+
+/** Сколько каждого компонента лежит в активных резервах. */
+export async function fetchReserved() {
+  const rows = check(await supabase.from('fl_component_reserved').select('component_id, reserved').limit(5000)) as { component_id: string; reserved: number }[]
+  return new Map(rows.map(r => [r.component_id, Number(r.reserved)]))
+}
+
+export async function fetchTargetReservations(target: { productId?: string; assemblyId?: string }) {
+  let q = supabase.from('fl_reservations').select('*').eq('status', 'active').order('created_at', { ascending: false })
+  if (target.productId) q = q.eq('product_id', target.productId)
+  if (target.assemblyId) q = q.eq('assembly_id', target.assemblyId)
+  return (check(await q) as Reservation[]).map(r => ({ ...r, units: Number(r.units) }))
+}
+
+export async function fetchComponentReservations(componentId: string) {
+  const rows = check(await supabase.from('fl_reservation_lines').select('qty, reservation:fl_reservations(*)').eq('component_id', componentId)) as unknown as
+    { qty: number; reservation: Reservation | null }[]
+  return rows.filter(r => r.reservation?.status === 'active').map(r => ({ qty: Number(r.qty), r: { ...r.reservation!, units: Number(r.reservation!.units) } }))
+}
+
+export async function reserve(target: { productId?: string; assemblyId?: string }, units: number, note: string) {
+  return check(await supabase.rpc('fl_reserve', { p_product: target.productId ?? null, p_assembly: target.assemblyId ?? null, p_units: units, p_note: note })) as string
+}
+
+export async function releaseReservation(id: string) {
+  check(await supabase.rpc('fl_reservation_release', { p_id: id }))
+}
+
+// ── серийные номера ─────────────────────────────────────────────────────────
+
+export type UnitStatus = 'in_stock' | 'shipped' | 'scrap'
+export const UNIT_STATUS: Record<UnitStatus, { label: string; color: string }> = {
+  in_stock: { label: 'На складе', color: '#5ec4e6' },
+  shipped: { label: 'Отгружен', color: '#5fd08f' },
+  scrap: { label: 'Брак', color: '#f06a6a' },
+}
+
+export interface Unit {
+  id: string
+  workspace_id: string
+  product_id: string
+  serial: string
+  build_id: string | null
+  order_id?: string | null
+  status: UnitStatus
+  customer: string
+  shipped_on: string | null
+  note: string
+  created_by: string | null
+  created_at: string
+  product?: { id: string; name: string; version: string | null } | null
+}
+
+export async function fetchUnits(o: { productId?: string; search?: string; status?: UnitStatus | '' } = {}) {
+  let q = supabase.from('fl_units').select('*, product:fl_products(id, name, version)').order('created_at', { ascending: false }).limit(500)
+  if (o.productId) q = q.eq('product_id', o.productId)
+  if (o.status) q = q.eq('status', o.status)
+  const t = o.search?.trim().replace(/[\\%_,()]/g, ' ').trim()
+  if (t) q = q.or(`serial.ilike.%${t}%,customer.ilike.%${t}%`)
+  return check(await q) as Unit[]
+}
+
+export async function fetchUnitTrace(id: string) {
+  const u = check(await supabase.from('fl_units')
+    .select('*, product:fl_products(id, name, version), build:fl_builds(id, created_at, created_by, note, qty, lines, reverted_at)').eq('id', id).maybeSingle()) as
+    (Unit & { build: { id: string; created_at: string; created_by: string | null; note: string; qty: number; lines: BuildLine[]; reverted_at: string | null } | null }) | null
+  if (!u) return null
+  const serial = u.serial.replace(/[\\%_]/g, m => `\\${m}`)
+  const tests = check(await supabase.from('fl_tests').select('*').eq('product_id', u.product_id).ilike('serial', serial).order('tested_on', { ascending: false })) as ProductTest[]
+  return { ...u, build: u.build ? { ...u.build, qty: Number(u.build.qty), lines: u.build.lines.map(l => ({ ...l, qty: Number(l.qty) })) } : null, tests }
+}
+
+export async function buildWithSerials(productId: string, qty: number, note: string, serials: string[]) {
+  return check(await supabase.rpc('fl_build_serial', { p_product: productId, p_qty: qty, p_note: note, p_serials: serials })) as string
+}
+
+export async function addUnits(productId: string, serials: string[], note = '') {
+  check(await supabase.from('fl_units').insert(serials.map(serial => ({ product_id: productId, serial, note }))).select('id'))
+}
+
+export async function updateUnit(id: string, patch: Partial<Pick<Unit, 'status' | 'customer' | 'shipped_on' | 'note' | 'order_id'>>) {
+  one(check(await supabase.from('fl_units').update(patch).eq('id', id).select('id')), 'Экземпляр')
+}
+
+export async function deleteUnit(id: string) {
+  one(check(await supabase.from('fl_units').delete().eq('id', id).select('id')), 'Экземпляр (удалить можно только тот, что на складе)')
+}

@@ -397,7 +397,7 @@ export const markRead = (conversationId: string) => supabase.rpc('ws_mark_read',
 // ── команда и приглашения ───────────────────────────────────────────────────
 
 export async function inviteMember(
-  workspaceId: string, name: string, email: string, role: 'admin' | 'member', message: string,
+  workspaceId: string, name: string, email: string, role: 'admin' | 'member' | 'viewer', message: string,
 ) {
   return check(await supabase.rpc('ws_invite_member', {
     p_ws: workspaceId, p_name: name, p_email: email, p_role: role, p_message: message || null,

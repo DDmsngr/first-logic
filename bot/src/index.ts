@@ -4,7 +4,8 @@
 
 import { Db, type Ctx, type Digest } from './db'
 import { ASK_TITLE, DONE_TITLE, canAttach, describe, fillFromText, needsConfirm, normalize, type Intent, type TgFile } from './intents'
-import { LimitError, parseMessage } from './parse'
+import { handleApi } from './api'
+import { LimitError, parseMessage, type Audio } from './parse'
 import { isGroupChat, routeText } from './route'
 import { Tg, esc, type TgCallback, type TgMessage, type TgUpdate } from './tg'
 
@@ -17,6 +18,7 @@ export interface Env {
   WEBHOOK_SECRET: string
   DASHBOARD_URL: string
   BOT_USERNAME: string
+  ALLOWED_ORIGINS?: string
 }
 
 const HELP = `Я — вход в dashboard First Logic. Пишите обычным текстом:
@@ -29,6 +31,9 @@ const HELP = `Я — вход в dashboard First Logic. Пишите обычн�
 • <i>Собрал 3 сотки</i> — списать детали по составу (спрошу подтверждение)
 • <i>Сколько осталось SMA?</i> — вопрос по данным
 • <i>Какие задачи свободные?</i> — или /free
+• <i>Возьму #5</i> / <i>Отказываюсь от #5</i> — взять свободную задачу или вернуть
+• <i>В #5 напиши: проверил, всё в норме</i> — комментарий к задаче
+• Голосовое сообщение — то же самое, что текст (в группе — ответом на моё сообщение)
 • Файл или фото с подписью <i>«Задача: …»</i> — прикреплю к новой задаче
 
 Команды: /tasks — мои задачи, /free — свободные, /low — что пора заказать, /digest — сводка на сегодня, /me — чей аккаунт.
@@ -40,6 +45,8 @@ const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/M
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url)
+    const api = await handleApi(req, env)
+    if (api) return api
     if (req.method === 'GET' && url.pathname === '/setup') {
       // одноразовая настройка вебхука: ключ — тот же WEBHOOK_SECRET
       if (url.searchParams.get('key') !== env.WEBHOOK_SECRET) return new Response('forbidden', { status: 403 })
@@ -81,18 +88,22 @@ async function onMessage(msg: TgMessage, env: Env) {
   const inGroup = isGroupChat(msg.chat.type)
   const file = fileOf(msg)
   const attachTo = file ? attachTarget(msg, env) : null
-  const text = routeText(msg.chat.type, msg.text ?? msg.caption ?? '', {
-    username: env.BOT_USERNAME, botId: Number(env.BOT_TOKEN.split(':')[0]), replyToId: msg.reply_to_message?.from?.id,
+  const botId = Number(env.BOT_TOKEN.split(':')[0])
+  const routed = routeText(msg.chat.type, msg.text ?? msg.caption ?? '', {
+    username: env.BOT_USERNAME, botId, replyToId: msg.reply_to_message?.from?.id,
   })
-  console.log(`msg chat=${msg.chat.type} from=${msg.from?.id ?? '-'} len=${(msg.text ?? msg.caption ?? '').length} file=${file ? `${file.mime ?? '?'} ${file.size}` : '-'} accepted=${text !== null}`)
+  // голос: в личке всегда; в группе бот слышит только ответы на свои сообщения (упомянуть его в голосовом нельзя)
+  const voice = msg.voice && (!inGroup || msg.reply_to_message?.from?.id === botId) ? msg.voice : null
+  console.log(`msg chat=${msg.chat.type} from=${msg.from?.id ?? '-'} len=${(msg.text ?? msg.caption ?? '').length} file=${file ? `${file.mime ?? '?'} ${file.size}` : '-'} voice=${voice ? voice.duration + 's' : '-'} accepted=${routed !== null}`)
   if (!msg.from) return
   // файл ответом на сообщение бота с ссылкой на задачу/изделие — прикрепляем без разбора
   if (file && attachTo) return attachReply(tg, db, env, msg, file, attachTo)
   // файл без подписи: в личке подскажем, в группе (где нужно упоминание) молчим
-  if (file && !text && !inGroup) {
+  if (file && !routed && !inGroup) {
     return tg.send(chat, 'Файл получил, но не понял, что с ним делать. Отправьте его ещё раз с подписью, например: <i>Задача: разобрать таблицу по покрытию</i>.')
   }
-  if (!text) return
+  if (!routed && !voice) return
+  const text = routed ?? ''
   // в группе отвечаем на конкретное сообщение, чтобы было видно, кому
   const reply = inGroup ? { replyTo: msg.message_id } : {}
 
@@ -126,8 +137,20 @@ async function onMessage(msg: TgMessage, env: Env) {
 
   await tg.typing(chat)
   let raw: Record<string, unknown>
+  let audio: Audio | undefined
+  if (voice) {
+    if (voice.duration > 180 || (voice.file_size ?? 0) > 5 * 1024 * 1024) {
+      return tg.send(chat, 'Голосовое слишком длинное: до 3 минут. Разбейте на части или напишите текстом.', { replyTo: msg.message_id })
+    }
+    try {
+      audio = { mime: voice.mime_type ?? 'audio/ogg', base64: toBase64(await tg.download(voice.file_id)) }
+    } catch (e) {
+      console.error('voice download failed:', (e as Error).message)
+      return tg.send(chat, 'Не смог скачать голосовое. Попробуйте ещё раз или напишите текстом.', { replyTo: msg.message_id })
+    }
+  }
   try {
-    raw = await parseMessage(text, c, today(), env.GEMINI, env.GEMINI_MODEL)
+    raw = await parseMessage(text, c, today(), env.GEMINI, env.GEMINI_MODEL, audio)
   } catch (e) {
     console.error('parse failed:', (e as Error).message)
     const text = e instanceof LimitError
@@ -135,18 +158,22 @@ async function onMessage(msg: TgMessage, env: Env) {
       : 'Не смог разобрать сообщение — сервис разбора не ответил. Попробуйте ещё раз через минуту.'
     return tg.send(chat, text, { replyTo: msg.message_id })
   }
+  // что услышали: показываем в ответе, чтобы ошибку распознавания было видно сразу
+  const said = voice ? (typeof raw.transcript === 'string' ? raw.transcript.trim() : '') : text
+  if (voice && !said) return tg.send(chat, 'Не разобрал речь. Повторите ещё раз или напишите текстом.', { replyTo: msg.message_id })
+  const echo = voice ? `🎤 <i>${esc(said)}</i>\n\n` : ''
   const norm = normalize(raw, c)
-  const intent = fillFromText(norm.intent, text, c, today())
+  const intent = fillFromText(norm.intent, said, c, today())
   const missing = norm.missing
   if (file && canAttach(intent) && !missing.length) {
     if (file.size > TG_LIMIT) return tg.send(chat, 'Файл больше 20 МБ — Telegram не отдаёт такие боту. Загрузите его в задачу на сайте (до 25 МБ).', { replyTo: msg.message_id })
     intent.tg_file = file
   }
 
-  if (intent.intent === 'query') return tg.send(chat, esc(intent.answer ?? 'Не нашёл ответа в данных dashboard.'), { replyTo: msg.message_id })
+  if (intent.intent === 'query') return tg.send(chat, echo + esc(intent.answer ?? 'Не нашёл ответа в данных dashboard.'), { replyTo: msg.message_id })
   if (intent.intent === 'unknown' || missing.length) {
     const ask = intent.clarification ?? (missing.length ? `Не хватает: ${missing.join(', ')}.` : 'Не понял, что сделать.')
-    return tg.send(chat, `🤔 ${esc(ask)}\n\nНапишите подробнее или /help.`, { replyTo: msg.message_id })
+    return tg.send(chat, `${echo}🤔 ${esc(ask)}\n\nНапишите подробнее или /help.`, { replyTo: msg.message_id })
   }
 
   if (file && !intent.tg_file) {
@@ -154,8 +181,8 @@ async function onMessage(msg: TgMessage, env: Env) {
   }
 
   if (needsConfirm(intent)) {
-    const id = await db.savePending({ member_id: c.member.id, chat_id: chat, source_text: text, intent })
-    const sent = await tg.send(chat, [`<b>${ASK_TITLE[intent.intent]}</b>`, ...describe(intent, c, esc)].join('\n'), {
+    const id = await db.savePending({ member_id: c.member.id, chat_id: chat, source_text: said, intent })
+    const sent = await tg.send(chat, [`${echo}<b>${ASK_TITLE[intent.intent]}</b>`, ...describe(intent, c, esc)].join('\n'), {
       replyTo: msg.message_id,
       buttons: [[{ text: '✅ Создать', callback_data: `ok:${id}` }, { text: '✖ Отмена', callback_data: `no:${id}` }]],
     })
@@ -163,10 +190,10 @@ async function onMessage(msg: TgMessage, env: Env) {
     return
   }
 
-  return run(tg, db, env, c, intent, chat, msg.message_id)
+  return run(tg, db, env, c, intent, chat, msg.message_id, undefined, echo)
 }
 
-async function run(tg: Tg, db: Db, env: Env, c: Ctx, intent: Intent, chat: number, replyTo?: number, editId?: number) {
+async function run(tg: Tg, db: Db, env: Env, c: Ctx, intent: Intent, chat: number, replyTo?: number, editId?: number, prefix = '') {
   let text: string
   try {
     const r = await db.apply(c.member.id, intent)
@@ -184,7 +211,7 @@ async function run(tg: Tg, db: Db, env: Env, c: Ctx, intent: Intent, chat: numbe
       }
     }
     if (intent.intent === 'create_task' && !f) lines.push('', '📎 Нужен файл — ответьте на это сообщение файлом.')
-    text = [`<b>${DONE_TITLE[intent.intent]}</b>`, ...lines, '', link(env, r.link)].join('\n')
+    text = [`${prefix}<b>${DONE_TITLE[intent.intent]}</b>`, ...lines, '', link(env, r.link)].join('\n')
   } catch (e) {
     text = `❌ Не получилось: ${esc((e as Error).message)}`
   }
@@ -257,6 +284,13 @@ function freeText(c: Ctx, env: Env) {
 }
 
 const TG_LIMIT = 20 * 1024 * 1024
+
+function toBase64(buf: ArrayBuffer) {
+  const bytes = new Uint8Array(buf)
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(bin)
+}
 
 /** Документ или самое крупное фото из сообщения. */
 function fileOf(msg: TgMessage): TgFile | null {

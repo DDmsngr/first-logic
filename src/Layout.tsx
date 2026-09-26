@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Bell, Box, Boxes, Coins, Cpu, FolderOpen, LayoutDashboard, ListChecks, LogOut, Menu, MessageSquare, Search, Settings, ShoppingCart, Truck, Users, Wallet,
+  Barcode, Bell, Box, Boxes, Eye, Receipt, Coins, Cpu, FolderOpen, LayoutDashboard, ListChecks, LogOut, Menu, MessageSquare, Search, Settings, ShoppingCart, Truck, Users, Wallet,
   type LucideIcon,
 } from 'lucide-react'
 import { signOut, useWorkspace } from './auth'
@@ -28,8 +28,10 @@ const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: '/products', label: 'Изделия', icon: Box, mobile: true },
       { to: '/assemblies', label: 'Узлы', icon: Boxes },
+      { to: '/units', label: 'Экземпляры', icon: Barcode },
       { to: '/components', label: 'Компоненты', icon: Cpu },
-      { to: '/orders', label: 'Заказы', icon: ShoppingCart },
+      { to: '/sales', label: 'Продажи', icon: Receipt },
+      { to: '/orders', label: 'Закупки', icon: ShoppingCart },
       { to: '/suppliers', label: 'Поставщики', icon: Truck },
     ],
   },
@@ -146,6 +148,13 @@ export default function Layout({ children }: { children: ReactNode }) {
             )}
           </NavLink>
         </header>
+
+        {me.role === 'viewer' && (
+          <div role="status" className="flex items-center gap-2 border-b border-[var(--d-line)] bg-[var(--d-raised)] px-4 py-2 text-sm print:hidden md:px-6">
+            <Eye className="h-4 w-4 shrink-0" aria-hidden />
+            <span>Режим наблюдателя: можно смотреть всё, но менять данные нельзя — кнопки изменений вернут отказ.</span>
+          </div>
+        )}
 
         <main className="mx-auto w-full min-w-0 max-w-[1600px] flex-1 px-4 pb-28 pt-5 md:px-6 md:pb-10 print:p-0">{children}</main>
 

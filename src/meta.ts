@@ -1,3 +1,4 @@
+import { SALE_STATUSES } from './saleMath'
 import type { DocType, ActivityEvent, Member, MemberStatus, Priority, Role, TaskStatus } from './types'
 
 export const STATUSES: { id: TaskStatus; label: string; color: string }[] = [
@@ -16,7 +17,7 @@ export const PRIORITIES: { id: Priority; label: string; color: string; weight: n
   { id: 'critical', label: 'Critical', color: '#f06a6a', weight: 4 },
 ]
 
-export const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', admin: 'Admin', member: 'Member' }
+export const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', admin: 'Admin', member: 'Member', viewer: 'Наблюдатель' }
 
 export const MEMBER_STATUS_LABEL: Record<MemberStatus, string> = {
   active: 'Active', invited: 'Invited', pending: 'Pending', suspended: 'Suspended',
@@ -110,6 +111,14 @@ export function describeActivity(e: ActivityEvent, byUser: (id: string | null) =
     case 'test.fail': return `${who} записал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}: брак`
     case 'test.pending': return `${who} начал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}`
     case 'bom.revision': return `${who} зафиксировал(а) ревизию состава «${m.title}»: ${m.to}`
+    case 'sale.created': return `${who} создал(а) ${m.title} — ${m.to}`
+    case 'sale.status': return `${who}: ${m.title} — ${SALE_STATUSES.find(s => s.id === m.to)?.label ?? m.to}`
+    case 'unit.shipped': return `${who} отгрузил(а) ${m.title} № ${m.serial}${m.to ? ` — ${m.to}` : ''}`
+    case 'unit.scrapped': return `${who} списал(а) в брак ${m.title} № ${m.serial}`
+    case 'unit.restored': return `${who} вернул(а) на склад ${m.title} № ${m.serial}`
+    case 'reservation.created': return `${who} зарезервировал(а) компоненты под «${m.title}» × ${fmtNum(m.to)}`
+    case 'reservation.released': return `${who} снял(а) резерв под «${m.title}» × ${fmtNum(m.to)}`
+    case 'stocktake.applied': return `${who} провёл(а) ${m.title}: проверено ${m.from ?? ''} поз., исправлено ${m.to ?? ''}`
     case 'build.done': return `${who} собрал(а) «${m.title}» × ${fmtNum(m.to)} — списано ${m.lines ?? ''} поз.`
     case 'build.reverted': return `${who} отменил(а) сборку «${m.title}» × ${fmtNum(m.to)}, компоненты вернулись на склад`
     case 'order.created': return `${who} создал(а) ${m.title}${m.supplier ? ` (${m.supplier})` : ''}, позиций: ${m.lines ?? ''}`

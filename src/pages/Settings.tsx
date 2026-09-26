@@ -1,3 +1,4 @@
+import { InstallApp } from '../installApp'
 import { useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Camera, Trash2 } from 'lucide-react'
@@ -90,6 +91,8 @@ export default function Settings() {
           </div>
         </form>
       </section>
+
+      <InstallApp />
 
       <PresenceSettings />
 

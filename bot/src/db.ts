@@ -46,6 +46,12 @@ export class Db {
     return this.req(`rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) }) as Promise<T>
   }
 
+  /** Активный участник контура (для запросов с сайта). */
+  async isActiveMember(userId: string) {
+    const rows = await this.req(`ws_members?user_id=eq.${encodeURIComponent(userId)}&status=eq.active&select=id&limit=1`) as { id: string }[]
+    return rows.length > 0
+  }
+
   context(tgUserId: number) { return this.rpc<Ctx | null>('fl_bot_context', { p_tg_user: tgUserId }) }
   redeem(code: string, tgUser: number, chat: number, username: string | null) {
     return this.rpc<{ name: string }>('fl_bot_redeem', { p_code: code, p_tg_user: tgUser, p_chat: chat, p_username: username })
@@ -54,6 +60,9 @@ export class Db {
     if (intent.intent === 'build') {
       await this.rpc('fl_bot_build', { p_member: memberId, p_product: intent.product_id, p_qty: intent.qty })
       return { id: intent.product_id!, link: `/products/${intent.product_id}` }
+    }
+    if (['claim_task', 'release_task', 'add_comment'].includes(intent.intent)) {
+      return this.rpc<{ id: string; num?: number; link: string }>('fl_bot_task_action', { p_member: memberId, p_intent: intent })
     }
     return this.rpc<{ id: string; num?: number; link: string }>('fl_bot_apply', { p_member: memberId, p_intent: intent })
   }

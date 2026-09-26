@@ -1,12 +1,14 @@
+import { readDocument } from './docText'
+import { asImportJson, extractTasks } from './extractTasks'
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleHelp, Copy, Download, FileDown, FileUp } from 'lucide-react'
+import { CircleHelp, Copy, Download, FileDown, FileText, FileUp } from 'lucide-react'
 import { fetchTasks, importTasks } from './api'
 import { useWorkspace } from './auth'
 import { PRIORITIES, STATUSES, fmtDate } from './meta'
 import { AI_PROMPT, buildExport, buildTemplate, parseTaskFile, type ImportRow } from './taskJson'
 import type { Task } from './types'
-import { Modal, errMsg, useToast } from './ui'
+import { Modal, Spinner, errMsg, useToast } from './ui'
 
 function download(name: string, data: unknown) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
@@ -58,6 +60,23 @@ function ImportModal({ onClose, onHelp }: { onClose: () => void; onHelp: () => v
   const [skipDup, setSkipDup] = useState(true)
   const [done, setDone] = useState<{ num: number; title: string }[] | null>(null)
   const file = useRef<HTMLInputElement>(null)
+  const [reading, setReading] = useState(false)
+
+  const doc = useRef<HTMLInputElement>(null)
+  const fromDocument = async (f: File) => {
+    setReading(true)
+    try {
+      const content = await readDocument(f)
+      const tasks = await extractTasks(content, members.filter(m => m.status === 'active').map(m => m.name))
+      if (!tasks.length) { toast('В документе не нашлось задач', 'error'); return }
+      setText(asImportJson(tasks))
+      toast(`Нашёл задач: ${tasks.length}. Проверьте список ниже`)
+    } catch (e) {
+      toast(errMsg(e), 'error')
+    } finally {
+      setReading(false)
+    }
+  }
 
   // все задачи проекта (не только текущая выборка) — для поиска дубликатов по названию
   const existing = useQuery({ queryKey: ['tasks', project.id, { sort: 'priority' }], queryFn: () => fetchTasks(project.id, { sort: 'priority' }) })
@@ -84,7 +103,7 @@ function ImportModal({ onClose, onHelp }: { onClose: () => void; onHelp: () => v
   })
 
   return (
-    <Modal open onClose={onClose} title="Импорт задач из JSON">
+    <Modal open onClose={onClose} title="Импорт задач">
       {done ? (
         <div className="space-y-3">
           <p className="text-sm" role="status">Создано задач: <b>{done.length}</b>. Свободные можно взять на доске или на «Обзоре».</p>
@@ -98,9 +117,15 @@ function ImportModal({ onClose, onHelp }: { onClose: () => void; onHelp: () => v
           <div className="flex flex-wrap items-center gap-2">
             <input ref={file} type="file" accept=".json,application/json" className="sr-only" tabIndex={-1} aria-label="Файл JSON" data-testid="import-file"
               onChange={async e => { const f = e.target.files?.[0]; if (f) setText(await f.text()); e.target.value = '' }} />
-            <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => file.current?.click()}><FileUp className="h-4 w-4" aria-hidden /> Выбрать файл…</button>
+            <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => file.current?.click()}><FileUp className="h-4 w-4" aria-hidden /> Файл JSON…</button>
+            <input ref={doc} type="file" accept=".pdf,.docx,.txt,.md,.csv" className="sr-only" tabIndex={-1} aria-label="Документ" data-testid="import-doc"
+              onChange={e => { const f = e.target.files?.[0]; if (f) void fromDocument(f); e.target.value = '' }} />
+            <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" disabled={reading} onClick={() => doc.current?.click()}>
+              {reading ? <Spinner label="Читаю документ" /> : <><FileText className="h-4 w-4" aria-hidden /> Из документа (PDF, Word)…</>}
+            </button>
             <button type="button" className="dash-muted text-xs underline" onClick={onHelp}>Формат файла</button>
           </div>
+          <p className="dash-muted text-xs">Документ прочитает ИИ и предложит список задач: вы посмотрите и поправите его ниже, прежде чем создавать. Сроки и исполнители подставляются, только если они названы в тексте.</p>
           <textarea className="dash-input font-mono text-xs" rows={5} aria-label="Или вставьте JSON сюда" placeholder='…или вставьте JSON сюда: {"tasks": [{"title": "…"}]}'
             value={text} onChange={e => setText(e.target.value)} />
 

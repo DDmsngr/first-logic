@@ -1,3 +1,5 @@
+import { UnitsPanel } from '../units'
+import { ReservePanel } from '../reservations'
 import { TestsPanel } from '../qualityUi'
 import { BuildPanel } from '../builds'
 import { useState } from 'react'
@@ -155,6 +157,12 @@ export default function ProductDetail() {
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Сборка">
         <h2 className="dash-label mb-3">Сборка — списание со склада</h2>
         <BuildPanel target={{ productId: p.id }} />
+        <ReservePanel target={{ productId: p.id }} />
+      </section>
+
+      <section className="dash-card mb-4 min-w-0 p-4" aria-label="Экземпляры">
+        <h2 className="dash-label mb-3">Экземпляры</h2>
+        <UnitsPanel productId={p.id} />
       </section>
 
       <section className="dash-card mb-4 min-w-0 p-4" aria-label="Испытания">

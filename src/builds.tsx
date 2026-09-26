@@ -1,3 +1,4 @@
+import { parseSerials, serialRange, serialsProblem } from './serials'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -6,7 +7,7 @@ import { useWorkspace } from './auth'
 import { useCosting } from './catalogParts'
 import { fmtDateTime } from './meta'
 import { fmtQty, parseAmount } from './money'
-import { build, fetchBuilds, revertBuild } from './stock'
+import { build, buildWithSerials, fetchBuilds, revertBuild } from './stock'
 import { QueryState, errMsg, useToast } from './ui'
 
 type Target = { productId: string; assemblyId?: never } | { assemblyId: string; productId?: never }
@@ -20,6 +21,9 @@ export function BuildPanel({ target }: { target: Target }) {
   const [qty, setQty] = useState('1')
   const [note, setNote] = useState('')
   const [preview, setPreview] = useState(false)
+  const [serialText, setSerialText] = useState('')
+  const [start, setStart] = useState('')
+  const serials = parseSerials(serialText)
   const builds = useQuery({ queryKey: ['builds', target.productId ?? target.assemblyId], queryFn: () => fetchBuilds(target) })
 
   const n = parseAmount(qty)
@@ -30,11 +34,12 @@ export function BuildPanel({ target }: { target: Target }) {
     return { id, name: comp?.name ?? '—', unit: comp?.unit ?? 'шт', q, stock: comp?.stock ?? 0 }
   }).sort((a, b) => (a.stock - a.q) - (b.stock - b.q))
   const negative = lines.filter(l => l.stock - l.q < 0)
+  const problem = target.productId ? serialsProblem(serials, n) : null
 
-  const refresh = () => ['builds', 'components', 'component', 'activity', 'bom'].forEach(k => qc.invalidateQueries({ queryKey: [k] }))
+  const refresh = () => ['builds', 'components', 'component', 'activity', 'bom', 'reserved', 'reservations', 'component-reservations'].forEach(k => qc.invalidateQueries({ queryKey: [k] }))
   const run = useMutation({
-    mutationFn: () => build(target, n, note.trim()),
-    onSuccess: () => { toast(`Списано со склада: ${lines.length} позиций на ${fmtQty(n)} шт`); setPreview(false); setNote(''); refresh() },
+    mutationFn: () => (target.productId && serials.length ? buildWithSerials(target.productId, n, note.trim(), serials) : build(target, n, note.trim())),
+    onSuccess: () => { toast(`Списано со склада: ${lines.length} позиций на ${fmtQty(n)} шт${serials.length ? `, номеров: ${serials.length}` : ''}`); setPreview(false); setNote(''); setSerialText(''); refresh(); qc.invalidateQueries({ queryKey: ['units'] }) },
     onError: e => toast(errMsg(e), 'error'),
   })
   const revert = useMutation({
@@ -54,10 +59,27 @@ export function BuildPanel({ target }: { target: Target }) {
           <span className="dash-label mb-1.5 block">Комментарий</span>
           <input className="dash-input" placeholder="Партия, серийные номера, заказчик" value={note} onChange={e => setNote(e.target.value)} />
         </label>
-        <button className="dash-btn" disabled={!valid || lines.length === 0 || c.loading} onClick={() => setPreview(true)}>
+        <button className="dash-btn" disabled={!valid || lines.length === 0 || c.loading || !!problem} onClick={() => setPreview(true)}>
           <Hammer className="h-4 w-4" aria-hidden /> Списать со склада…
         </button>
       </div>
+      {target.productId && (
+        <details className="mt-2 text-sm" open={serials.length > 0}>
+          <summary className="dash-muted cursor-pointer select-none">Серийные номера (необязательно)</summary>
+          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+            <textarea className="dash-input dash-mono" rows={3} value={serialText} onChange={e => { setSerialText(e.target.value); setPreview(false) }}
+              placeholder={'По одному на строку или через запятую\nFL100-0015\nFL100-0016'} aria-label="Серийные номера" />
+            <div className="flex flex-col gap-1.5">
+              <input className="dash-input dash-mono" value={start} onChange={e => setStart(e.target.value)} placeholder="Начать с FL100-0015" aria-label="Первый номер для ряда" />
+              <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" disabled={!valid || !serialRange(start, n).length}
+                onClick={() => { setSerialText(serialRange(start, n).join('\n')); setPreview(false) }}>Заполнить ряд на {valid ? fmtQty(n) : '…'}</button>
+            </div>
+          </div>
+          {problem
+            ? <p role="alert" className="mt-1.5 text-xs text-[var(--d-danger)]">{problem}</p>
+            : serials.length > 0 && <p className="dash-muted mt-1.5 text-xs">Будет создано экземпляров: {serials.length}</p>}
+        </details>
+      )}
       {!c.loading && lines.length === 0 && <p className="dash-muted mt-2 text-sm">Состав пуст — списывать нечего. Сначала заполните состав.</p>}
 
       {preview && lines.length > 0 && (
