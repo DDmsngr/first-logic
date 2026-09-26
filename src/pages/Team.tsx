@@ -82,7 +82,7 @@ export default function Team() {
                       {(m.status === 'active' || m.status === 'invited') && isOwner && (
                         <select className="dash-input !min-h-8 !w-auto text-xs" aria-label={`Роль ${m.name}`} value={m.role}
                           onChange={e => mutate.mutate(() => updateMember(m.id, { role: e.target.value as Role }))}>
-                          <option value="member">Member</option><option value="admin">Admin</option>
+                          <option value="member">Member</option><option value="admin">Admin</option><option value="viewer">Наблюдатель</option>
                         </select>
                       )}
                       {m.status === 'active' && <button className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => confirm(`Приостановить доступ ${m.name}?`) && mutate.mutate(() => updateMember(m.id, { status: 'suspended' }))}>Приостановить</button>}
@@ -132,7 +132,7 @@ function InviteModal({ open, onClose, onCreated }: { open: boolean; onClose: () 
   const toast = useToast()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<'admin' | 'member'>('member')
+  const [role, setRole] = useState<'admin' | 'member' | 'viewer'>('member')
   const [message, setMessage] = useState('')
   const invite = useMutation({
     mutationFn: () => inviteMember(workspace.id, name.trim(), email.trim(), role, message),
@@ -146,9 +146,10 @@ function InviteModal({ open, onClose, onCreated }: { open: boolean; onClose: () 
         <Field label="Имя"><input className="dash-input" required autoFocus value={name} onChange={e => setName(e.target.value)} /></Field>
         <Field label="Email"><input className="dash-input" type="email" required value={email} onChange={e => setEmail(e.target.value)} /></Field>
         <Field label="Роль">
-          <select className="dash-input" value={role} onChange={e => setRole(e.target.value as 'admin' | 'member')}>
+          <select className="dash-input" value={role} onChange={e => setRole(e.target.value as 'admin' | 'member' | 'viewer')}>
             <option value="member">Member — работает со своими задачами</option>
             {isOwner && <option value="admin">Admin — управляет задачами и людьми</option>}
+            <option value="viewer">Наблюдатель — видит всё, ничего не меняет</option>
           </select>
         </Field>
         <Field label="Сообщение (необязательно)"><textarea className="dash-input" value={message} onChange={e => setMessage(e.target.value)} /></Field>

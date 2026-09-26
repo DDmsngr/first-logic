@@ -1,4 +1,4 @@
-export type Role = 'owner' | 'admin' | 'member'
+export type Role = 'owner' | 'admin' | 'member' | 'viewer'
 export type MemberStatus = 'active' | 'invited' | 'pending' | 'suspended'
 export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'review' | 'blocked' | 'done'
 export type Priority = 'low' | 'medium' | 'high' | 'critical'

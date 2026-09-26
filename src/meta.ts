@@ -17,7 +17,7 @@ export const PRIORITIES: { id: Priority; label: string; color: string; weight: n
   { id: 'critical', label: 'Critical', color: '#f06a6a', weight: 4 },
 ]
 
-export const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', admin: 'Admin', member: 'Member' }
+export const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', admin: 'Admin', member: 'Member', viewer: 'Наблюдатель' }
 
 export const MEMBER_STATUS_LABEL: Record<MemberStatus, string> = {
   active: 'Active', invited: 'Invited', pending: 'Pending', suspended: 'Suspended',
