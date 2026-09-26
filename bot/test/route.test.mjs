@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { routeText } from '../src/route.ts'
+import { isListenRequest, routeText } from '../src/route.ts'
 
 const o = { username: 'first_logic_bot', botId: 111 }
 
@@ -34,4 +34,14 @@ test('пустое после удаления упоминания — не к�
 
 test('каналы и прочее не обрабатываются', () => {
   assert.equal(routeText('channel', '@first_logic_bot привет', o), null)
+})
+
+test('«слушай» — просьба разобрать голосовое, а не команда', () => {
+  for (const t of ['слушай', 'Послушай', 'послушай это', 'расшифруй!', 'разбери голосовое', 'глянь', 'слушай, пожалуйста']) assert.equal(isListenRequest(t), true, t)
+  for (const t of ['слушай, купи разъёмы', 'сделай задачу', 'слушайте все', '', 'разбери задачу #5']) assert.equal(isListenRequest(t), false, t)
+})
+
+test('в группе «@бот слушай» доходит до бота и очищается от упоминания', () => {
+  assert.equal(routeText('supergroup', '@first_logic_bot слушай', o), 'слушай')
+  assert.equal(isListenRequest(routeText('supergroup', '@first_logic_bot послушай', o)), true)
 })

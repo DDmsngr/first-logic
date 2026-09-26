@@ -5,6 +5,13 @@ export interface RouteOpts { username: string; botId: number; replyToId?: number
 
 export const isGroupChat = (type: string) => type === 'group' || type === 'supergroup'
 
+/**
+ * «Слушай», «послушай», «расшифруй»: короткая просьба разобрать голосовое, на которое ответили.
+ * Только это слово (с необязательным «это/его/сообщение»), иначе текст считается обычной командой.
+ */
+export const isListenRequest = (text: string) =>
+  /^(?:а?\s*)?(?:слушай|послушай|прослушай|разбери|расшифруй|распознай|глянь|прочитай)(?:[,\s]+(?:это|его|голосовое|сообщение|пожалуйста))*[.!\s]*$/i.test(text.trim())
+
 /** Очищенный текст команды или null, если сообщение боту не адресовано. */
 export function routeText(chatType: string, raw: string, o: RouteOpts): string | null {
   const text = raw.trim()

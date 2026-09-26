@@ -6,7 +6,7 @@ import { Db, type Ctx, type Digest } from './db'
 import { ASK_TITLE, DONE_TITLE, canAttach, describe, fillFromText, needsConfirm, normalize, type Intent, type TgFile } from './intents'
 import { handleApi } from './api'
 import { LimitError, parseMessage, type Audio } from './parse'
-import { isGroupChat, routeText } from './route'
+import { isGroupChat, isListenRequest, routeText } from './route'
 import { Tg, esc, type TgCallback, type TgMessage, type TgUpdate } from './tg'
 
 export interface Env {
@@ -33,7 +33,7 @@ const HELP = `Я — вход в dashboard First Logic. Пишите обычн�
 • <i>Какие задачи свободные?</i> — или /free
 • <i>Возьму #5</i> / <i>Отказываюсь от #5</i> — взять свободную задачу или вернуть
 • <i>В #5 напиши: проверил, всё в норме</i> — комментарий к задаче
-• Голосовое сообщение — то же самое, что текст (в группе — ответом на моё сообщение)
+• Голосовое сообщение — то же самое, что текст (в группе — ответом на моё сообщение, либо запишите голосовое и ответьте на него: <i>@first_logic_bot слушай</i>)
 • Файл или фото с подписью <i>«Задача: …»</i> — прикреплю к новой задаче
 
 Команды: /tasks — мои задачи, /free — свободные, /low — что пора заказать, /digest — сводка на сегодня, /me — чей аккаунт.
@@ -93,7 +93,10 @@ async function onMessage(msg: TgMessage, env: Env) {
     username: env.BOT_USERNAME, botId, replyToId: msg.reply_to_message?.from?.id,
   })
   // голос: в личке всегда; в группе бот слышит только ответы на свои сообщения (упомянуть его в голосовом нельзя)
-  const voice = msg.voice && (!inGroup || msg.reply_to_message?.from?.id === botId) ? msg.voice : null
+  // либо голосовое отдельным сообщением, либо «@бот слушай» ответом на чьё-то голосовое (его можно записать заранее и позвать бота потом)
+  const ownVoice = msg.voice && (!inGroup || msg.reply_to_message?.from?.id === botId) ? msg.voice : null
+  const repliedVoice = !ownVoice && routed !== null && isListenRequest(routed) ? msg.reply_to_message?.voice ?? null : null
+  const voice = ownVoice ?? repliedVoice
   console.log(`msg chat=${msg.chat.type} from=${msg.from?.id ?? '-'} len=${(msg.text ?? msg.caption ?? '').length} file=${file ? `${file.mime ?? '?'} ${file.size}` : '-'} voice=${voice ? voice.duration + 's' : '-'} accepted=${routed !== null}`)
   if (!msg.from) return
   // файл ответом на сообщение бота с ссылкой на задачу/изделие — прикрепляем без разбора
@@ -103,7 +106,7 @@ async function onMessage(msg: TgMessage, env: Env) {
     return tg.send(chat, 'Файл получил, но не понял, что с ним делать. Отправьте его ещё раз с подписью, например: <i>Задача: разобрать таблицу по покрытию</i>.')
   }
   if (!routed && !voice) return
-  const text = routed ?? ''
+  const text = repliedVoice ? '' : routed ?? ''
   // в группе отвечаем на конкретное сообщение, чтобы было видно, кому
   const reply = inGroup ? { replyTo: msg.message_id } : {}
 
