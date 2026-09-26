@@ -347,6 +347,7 @@ export interface Unit {
   product_id: string
   serial: string
   build_id: string | null
+  order_id?: string | null
   status: UnitStatus
   customer: string
   shipped_on: string | null
@@ -383,7 +384,7 @@ export async function addUnits(productId: string, serials: string[], note = '') 
   check(await supabase.from('fl_units').insert(serials.map(serial => ({ product_id: productId, serial, note }))).select('id'))
 }
 
-export async function updateUnit(id: string, patch: Partial<Pick<Unit, 'status' | 'customer' | 'shipped_on' | 'note'>>) {
+export async function updateUnit(id: string, patch: Partial<Pick<Unit, 'status' | 'customer' | 'shipped_on' | 'note' | 'order_id'>>) {
   one(check(await supabase.from('fl_units').update(patch).eq('id', id).select('id')), 'Экземпляр')
 }
 

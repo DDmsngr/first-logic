@@ -1,3 +1,4 @@
+import { SALE_STATUSES } from './saleMath'
 import type { DocType, ActivityEvent, Member, MemberStatus, Priority, Role, TaskStatus } from './types'
 
 export const STATUSES: { id: TaskStatus; label: string; color: string }[] = [
@@ -110,6 +111,8 @@ export function describeActivity(e: ActivityEvent, byUser: (id: string | null) =
     case 'test.fail': return `${who} записал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}: брак`
     case 'test.pending': return `${who} начал(а) испытание «${m.title}»${m.serial ? ` № ${m.serial}` : ''}`
     case 'bom.revision': return `${who} зафиксировал(а) ревизию состава «${m.title}»: ${m.to}`
+    case 'sale.created': return `${who} создал(а) ${m.title} — ${m.to}`
+    case 'sale.status': return `${who}: ${m.title} — ${SALE_STATUSES.find(s => s.id === m.to)?.label ?? m.to}`
     case 'unit.shipped': return `${who} отгрузил(а) ${m.title} № ${m.serial}${m.to ? ` — ${m.to}` : ''}`
     case 'unit.scrapped': return `${who} списал(а) в брак ${m.title} № ${m.serial}`
     case 'unit.restored': return `${who} вернул(а) на склад ${m.title} № ${m.serial}`

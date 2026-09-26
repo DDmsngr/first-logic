@@ -5,6 +5,7 @@ import { PackageCheck, Plus, Trash2, XCircle } from 'lucide-react'
 import { useWorkspace } from './auth'
 import { fmtDate, todayIso } from './meta'
 import { parseSerials } from './serials'
+import { fetchOpenSales } from './sales'
 import { UNIT_STATUS, addUnits, deleteUnit, fetchUnits, updateUnit, type Unit, type UnitStatus } from './stock'
 import { DateInput, Field, Modal, QueryState, errMsg, useToast } from './ui'
 
@@ -20,17 +21,28 @@ export const unitsRefresh = (qc: ReturnType<typeof useQueryClient>) =>
 export function ShipModal({ unit, onClose }: { unit: Unit | null; onClose: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()
+  const { workspace } = useWorkspace()
   const [customer, setCustomer] = useState('')
+  const [orderId, setOrderId] = useState('')
   const [date, setDate] = useState(todayIso())
+  const orders = useQuery({ queryKey: ['sales', 'open', workspace.id], queryFn: () => fetchOpenSales(workspace.id), enabled: !!unit })
   const ship = useMutation({
-    mutationFn: () => updateUnit(unit!.id, { status: 'shipped', customer: customer.trim(), shipped_on: date || null }),
-    onSuccess: () => { toast(`Отгружен ${unit!.serial}`); unitsRefresh(qc); onClose() },
+    mutationFn: () => updateUnit(unit!.id, { status: 'shipped', customer: customer.trim(), shipped_on: date || null, order_id: orderId || null }),
+    onSuccess: () => { toast(`Отгружен ${unit!.serial}`); unitsRefresh(qc); qc.invalidateQueries({ queryKey: ['sale-units'] }); onClose() },
     onError: e => toast(errMsg(e), 'error'),
   })
   return (
     <Modal open={!!unit} onClose={onClose} title={unit ? `Отгрузка ${unit.serial}` : ''}>
       {unit && (
         <form onSubmit={e => { e.preventDefault(); ship.mutate() }} className="space-y-3">
+          {(orders.data?.length ?? 0) > 0 && (
+            <Field label="По заказу клиента" hint="Необязательно: отгрузка засчитается в заказ">
+              <select className="dash-input" value={orderId} onChange={e => { setOrderId(e.target.value); const o = orders.data?.find(x => x.id === e.target.value); if (o) setCustomer(o.customer) }}>
+                <option value="">Без заказа</option>
+                {orders.data?.map(o => <option key={o.id} value={o.id}>№{o.num} · {o.customer}</option>)}
+              </select>
+            </Field>
+          )}
           <Field label="Кому" hint="Клиент или заказ — по нему потом найдёте экземпляр при рекламации">
             <input className="dash-input" autoFocus value={customer} onChange={e => setCustomer(e.target.value)} maxLength={200} placeholder="ООО «Радиосвязь»" />
           </Field>

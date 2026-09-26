@@ -22,6 +22,7 @@ function activityLink(e: ActivityEvent): string | null {
     case 'assembly': return id && `/assemblies/${id}`
     case 'order': return id && `/orders/${id}`
     case 'stocktake': return id && `/stocktake/${id}`
+    case 'sale': return id && `/sales/${id}`
     case 'supplier': return id && `/suppliers/${id}`
     case 'expense': return '/finance'
     case 'member': return e.action === 'member.joined' && e.actor_id ? `/team/${e.actor_id}` : '/team'
