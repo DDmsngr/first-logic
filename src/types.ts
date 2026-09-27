@@ -51,6 +51,11 @@ export interface Task {
   label_ids: string[]
   comment_count: number
   attachment_count: number
+  /** Родительская задача, если это подзадача (чек-лист внутри другой задачи). Один уровень вложенности. */
+  parent_id: string | null
+  /** Сколько подзадач и сколько из них отмечены выполненными — считает база при любом изменении. */
+  subtask_total: number
+  subtask_done: number
 }
 
 export interface TaskComment {
@@ -144,4 +149,6 @@ export interface TaskFilters {
   due?: 'overdue' | 'week' | 'none'
   q?: string
   sort: 'newest' | 'oldest' | 'priority' | 'due' | 'updated'
+  /** Только задачи верхнего уровня — без чек-листов внутри других задач (доска и список так и просят). */
+  topLevel?: boolean
 }

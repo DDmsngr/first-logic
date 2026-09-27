@@ -14,6 +14,7 @@ import { Avatar, DateInput, Field, QueryState, errMsg, useToast } from '../ui'
 import Md from '../Md'
 import { ActivityList, FileList, UploadButton } from '../shared'
 import { ClaimButton, LabelChips, PriorityChip, StatusChip, useTaskUpdate } from '../taskParts'
+import { SubtaskBreadcrumb, SubtasksPanel } from '../subtasks'
 
 const ADMIN_ONLY_HINT = 'Изменить может только owner или admin'
 
@@ -64,6 +65,7 @@ export default function TaskDetail() {
         empty={!t} emptyText="Задача не найдена" emptyHint="Она удалена, в архиве или у вас нет доступа.">
         {t && (
           <>
+            {t.parent_id && <SubtaskBreadcrumb parentId={t.parent_id} />}
             <div className="mb-5">
               {editingTitle ? (
                 <form className="flex gap-2" onSubmit={e => { e.preventDefault(); if (title.trim()) { patch({ title: title.trim() }); setEditingTitle(false) } }}>
@@ -139,6 +141,8 @@ export default function TaskDetail() {
                 )}
               </div>
             </section>
+
+            <SubtasksPanel task={t} />
 
             <section aria-labelledby="desc-h" className="mb-5">
               <div className="mb-2 flex items-center justify-between">

@@ -4,7 +4,7 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Box, CalendarDays, Check, MessageSquare, Paperclip, X } from 'lucide-react'
+import { Box, CalendarDays, Check, ListChecks, MessageSquare, Paperclip, X } from 'lucide-react'
 import { claimTask, createTask, releaseTask, updateTask, uploadFile, type TaskPatch } from './api'
 import { ProductSelect, useProducts } from './catalogParts'
 import { useWorkspace } from './auth'
@@ -196,6 +196,11 @@ export function TaskCardBody({ task }: { task: Task }) {
         <PriorityChip priority={task.priority} />
         <ProductTag id={task.product_id} />
         <LabelChips ids={task.label_ids} />
+        {task.subtask_total > 0 && (
+          <span className="dash-chip" title={`Подзадачи: ${task.subtask_done} из ${task.subtask_total}`}>
+            <ListChecks className="h-3 w-3" aria-hidden /> {task.subtask_done}/{task.subtask_total}
+          </span>
+        )}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-3">
         {free && <span className="order-last ml-auto"><ClaimButton task={task} compact /></span>}

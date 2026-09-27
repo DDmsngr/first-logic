@@ -84,7 +84,8 @@ export default function Tasks() {
 
   const tasks = useQuery({
     queryKey: ['tasks', project.id, filters],
-    queryFn: () => fetchTasks(project.id, filters),
+    // доска и список — верхний уровень; чек-листы внутри задач живут на их собственных страницах
+    queryFn: () => fetchTasks(project.id, { ...filters, topLevel: true }),
     placeholderData: prev => prev,
   })
 
@@ -325,6 +326,7 @@ function ListRow({ task: t, byUser }: { task: Task; byUser: ReturnType<typeof us
       <Link to={`/tasks/${t.id}`} className="min-w-0 flex-1 basis-56 truncate text-sm font-medium hover:underline"><span className="dash-muted mr-1 font-mono text-xs font-normal">#{t.num}</span>{t.title}</Link>
       <StatusChip status={t.status} />
       <PriorityChip priority={t.priority} />
+      {t.subtask_total > 0 && <span className="dash-muted text-xs tabular-nums" title={`Подзадачи: ${t.subtask_done} из ${t.subtask_total}`}>{t.subtask_done}/{t.subtask_total}</span>}
       <DueLabel task={t} />
       <span className="flex items-center gap-2 text-xs dash-muted"><Avatar member={byUser(t.assignee_id)} size={22} />{byUser(t.assignee_id)?.name ?? 'Не назначено'}</span>
     </li>

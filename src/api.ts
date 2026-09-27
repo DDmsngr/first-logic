@@ -66,6 +66,7 @@ const escapeLike = (s: string) => s.replace(/[\\%_]/g, m => '\\' + m).replace(/[
 
 export async function fetchTasks(projectId: string, f: TaskFilters, limit = 300) {
   let q = supabase.from('ws_tasks').select(TASK_SELECT).eq('project_id', projectId).is('archived_at', null)
+  if (f.topLevel) q = q.is('parent_id', null)
   if (f.status?.length) q = q.in('status', f.status)
   if (f.priority?.length) q = q.in('priority', f.priority)
   if (f.assignee === 'none') q = q.is('assignee_id', null)
@@ -121,12 +122,39 @@ export async function createTask(t: NewTask) {
 }
 
 export type TaskPatch = Partial<Pick<Task,
-  'title' | 'description' | 'status' | 'priority' | 'assignee_id' | 'due_date' | 'position' | 'archived_at' | 'product_id'>>
+  'title' | 'description' | 'status' | 'priority' | 'assignee_id' | 'due_date' | 'position' | 'archived_at' | 'product_id' | 'parent_id'>>
 
 export async function updateTask(id: string, patch: TaskPatch) {
   const rows = check(await supabase.from('ws_tasks').update(patch).eq('id', id).select('id')) as { id: string }[]
   // RLS молча отсекает чужие строки: 0 строк — это отказ, а не успех
   if (rows.length === 0) throw new Error('Нет прав на изменение этой задачи')
+}
+
+// ── подзадачи ────────────────────────────────────────────────────────────────
+//
+// Та же ws_tasks с parent_id: полноценная задача (свой исполнитель, срок,
+// обсуждение), просто показывается не отдельной карточкой на доске, а списком
+// внутри родительской — удобно для «одна задача, куча проверок».
+
+export async function fetchSubtasks(parentId: string) {
+  const rows = check(await supabase.from('ws_tasks').select(TASK_SELECT)
+    .eq('parent_id', parentId).is('archived_at', null).order('created_at', { ascending: true })) as unknown as TaskRow[]
+  return rows.map(mapTask)
+}
+
+/** По одному названию на строку — чек-лист проверок одним махом. */
+export async function addSubtasks(parentId: string, titles: string[]) {
+  return check(await supabase.rpc('ws_task_add_subtasks', { p_parent: parentId, p_titles: titles })) as
+    { id: string; num: number; title: string }[]
+}
+
+/** «У меня уже есть кучка отдельных задач — сделать их подзадачами одной». */
+export async function attachSubtasks(parentId: string, taskIds: string[]) {
+  return bulkUpdateTasks(taskIds, { parent_id: parentId })
+}
+
+export async function detachSubtask(id: string) {
+  return updateTask(id, { parent_id: null })
 }
 
 /**
