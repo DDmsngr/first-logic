@@ -20,7 +20,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: '/', label: 'Обзор', icon: LayoutDashboard, end: true, mobile: true },
       { to: '/tasks', label: 'Задачи', icon: ListChecks, mobile: true },
-      { to: '/messages', label: 'Сообщения', icon: MessageSquare },
+      { to: '/messages', label: 'Сообщения', icon: MessageSquare, mobile: true },
     ],
   },
   {
