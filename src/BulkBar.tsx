@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link2, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import {
-  bulkAddLabel, bulkArchiveTasks, bulkDeleteTasks, bulkRemoveLabel, bulkUpdateTasks,
-  claimTask, releaseTask, type TaskPatch,
+  attachSubtasks, bulkAddLabel, bulkArchiveTasks, bulkDeleteTasks, bulkRemoveLabel, bulkUpdateTasks,
+  claimTask, fetchTasks, releaseTask, type TaskPatch,
 } from './api'
 import { useWorkspace } from './auth'
 import { PRIORITIES, STATUSES, pluralTasks, todayIso } from './meta'
@@ -25,6 +25,7 @@ export default function BulkBar({ tasks }: { tasks: Task[] }) {
   const toast = useToast()
   const { selected, clear } = useTaskSelectionCtx()
   const [editOpen, setEditOpen] = useState(false)
+  const [subOpen, setSubOpen] = useState(false)
 
   const ids = [...selected]
   // фильтрация по факту загруженных задач лечит случай, когда выбранная задача
@@ -115,6 +116,9 @@ export default function BulkBar({ tasks }: { tasks: Task[] }) {
             <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" disabled={busy} onClick={() => setEditOpen(true)}>
               <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden /> Действия…
             </button>
+            <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" disabled={busy} onClick={() => setSubOpen(true)}>
+              <Link2 className="h-3.5 w-3.5" aria-hidden /> Сделать подзадачами…
+            </button>
             <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" disabled={busy} onClick={() => archive.mutate()}>Архивировать</button>
             <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm !text-[var(--d-danger)]" disabled={busy}
               onClick={() => { if (confirm(`Удалить ${pluralTasks(selTasks.length)}? Комментарии и файлы удалятся вместе с ними, это необратимо.`)) del.mutate() }}>
@@ -128,7 +132,64 @@ export default function BulkBar({ tasks }: { tasks: Task[] }) {
         <BulkEditModal ids={selTasks.map(t => t.id)} count={selTasks.length}
           onClose={() => setEditOpen(false)} onDone={() => { refreshAll(); clear(); setEditOpen(false) }} />
       )}
+      {subOpen && (
+        <MakeSubtasksModal tasks={selTasks}
+          onClose={() => setSubOpen(false)} onDone={() => { refreshAll(); clear(); setSubOpen(false) }} />
+      )}
     </div>
+  )
+}
+
+/**
+ * «У меня куча отдельных задач, а на деле это одна задача с проверками» — выбрал
+ * их на доске, тут выбираешь, под какую задачу их всех подшить разом.
+ */
+function MakeSubtasksModal({ tasks, onClose, onDone }: { tasks: Task[]; onClose: () => void; onDone: () => void }) {
+  const { project } = useWorkspace()
+  const toast = useToast()
+  const [q, setQ] = useState('')
+  const [parentId, setParentId] = useState('')
+
+  // уже сама с подзадачами — своих подзадач не бывает, база такую заявку отклонит целиком
+  const eligible = tasks.filter(t => t.subtask_total === 0)
+  const skipped = tasks.length - eligible.length
+
+  const list = useQuery({ queryKey: ['tasks', project.id, { sort: 'newest', topLevel: true }], queryFn: () => fetchTasks(project.id, { sort: 'newest', topLevel: true }) })
+  const ids = new Set(tasks.map(t => t.id))
+  const t = q.trim().toLowerCase()
+  const candidates = (list.data ?? []).filter(x => !ids.has(x.id) && (!t || x.title.toLowerCase().includes(t)))
+
+  const attach = useMutation({
+    mutationFn: () => attachSubtasks(parentId, eligible.map(t => t.id)),
+    onSuccess: n => { toast(skipped > 0 ? `Прикреплено: ${n}, пропущено (уже сами с подзадачами): ${skipped}` : `Прикреплено: ${n}`); onDone() },
+    onError: e => toast(errMsg(e), 'error'),
+  })
+
+  return (
+    <Modal open onClose={onClose} title={`Сделать подзадачами · ${pluralTasks(tasks.length)}`}>
+      <div className="space-y-3">
+        <p className="dash-muted text-sm">Выбранные задачи станут чек-листом внутри одной — какой?</p>
+        {skipped > 0 && <p className="text-sm text-[var(--d-warn)]">{pluralTasks(skipped)} уже сами с подзадачами — их пропущу.</p>}
+        <input className="dash-input" type="search" placeholder="Поиск по названию" aria-label="Поиск задачи-родителя" autoFocus value={q} onChange={e => setQ(e.target.value)} />
+        <ul className="max-h-72 overflow-y-auto rounded-xl border border-[var(--d-line)]" role="radiogroup" aria-label="Задача-родитель">
+          {candidates.map(x => (
+            <li key={x.id}>
+              <label className="dash-row flex cursor-pointer items-center gap-2 px-3 py-2 text-sm">
+                <input type="radio" name="parent" className="accent-[var(--d-accent)]" checked={parentId === x.id} onChange={() => setParentId(x.id)} />
+                <span className="min-w-0 flex-1 truncate"><span className="dash-muted mr-1 font-mono text-xs">#{x.num}</span>{x.title}</span>
+              </label>
+            </li>
+          ))}
+          {candidates.length === 0 && <li className="dash-muted p-4 text-center text-sm">{list.isLoading ? 'Загрузка…' : 'Подходящих задач нет'}</li>}
+        </ul>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="dash-btn dash-btn-ghost" onClick={onClose}>Отмена</button>
+          <button className="dash-btn" disabled={!parentId || eligible.length === 0 || attach.isPending} onClick={() => attach.mutate()}>
+            {attach.isPending ? 'Прикрепляем…' : `Прикрепить (${eligible.length})`}
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
