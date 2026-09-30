@@ -133,7 +133,10 @@ export function Modal({ open, onClose, title, children, guard = true }: {
       onInput={() => { dirty.current = true }}
       // Esc: если есть введённое — не даём окну закрыться само, сначала спрашиваем
       onCancel={e => { if (guard && dirty.current) { e.preventDefault(); tryClose() } }}
-      onClick={e => { if (e.target === ref.current) tryClose() }}
+      // модалка живёт в DOM внутри того, что её открыло (строка таблицы, карточка-ссылка):
+      // stopPropagation спасает от React-обработчика строки, а клик по фону — это ещё и
+      // «активация» вложенной ссылки на уровне браузера, её глушит только preventDefault
+      onClick={e => { e.stopPropagation(); if (e.target === ref.current) { e.preventDefault(); tryClose() } }}
       aria-labelledby="modal-title"
       className="m-auto max-h-[calc(100dvh-24px)] w-[min(520px,calc(100vw-24px))] overflow-y-auto rounded-2xl border border-[var(--d-line)] bg-[var(--d-surface)] p-0 text-[var(--d-text)] backdrop:bg-black/60"
     >
@@ -141,7 +144,7 @@ export function Modal({ open, onClose, title, children, guard = true }: {
         <div className="p-5">
           <div className="mb-4 flex items-start justify-between gap-4">
             <h2 id="modal-title" className="text-lg font-semibold">{title}</h2>
-            <button className="dash-btn dash-btn-ghost dash-btn-sm" onClick={tryClose} aria-label="Закрыть">
+            <button className="dash-btn dash-btn-ghost dash-btn-sm" onClick={e => { e.preventDefault(); tryClose() }} aria-label="Закрыть">
               <X className="h-4 w-4" aria-hidden />
             </button>
           </div>

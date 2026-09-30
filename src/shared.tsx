@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, ExternalLink, FileText, Image as ImageIcon, Trash2, Upload } from 'lucide-react'
+import { Download, ExternalLink, FileText, Image as ImageIcon, Loader2, Trash2, Upload } from 'lucide-react'
 import {
   PAGE, deleteAttachment, fetchActivity, fetchAttachmentsByIds, fileLabels, isImage, signedUrl, updateAttachment, uploadFile, type UploadTarget,
 } from './api'
@@ -210,16 +211,38 @@ export function usePreviewMap(items: { preview_attachment_id: string | null }[])
   return new Map((q.data ?? []).map(a => [a.id, a]))
 }
 
-/** Кнопка «Превью» в строке/карточке списка: клик открывает фото и описание, не переходя по ссылке. */
+/**
+ * Кнопка «Превью» в строке/карточке списка: наведение показывает фото рядом,
+ * клик открывает карточку с фото и описанием — не переходя по ссылке строки/карточки.
+ * Наведённое превью рисуется порталом в body: строки таблиц режут overflow по
+ * горизонтали (overflow-x-auto), внутри них абсолютное позиционирование обрежется.
+ */
 export function PreviewChip({ attachment }: { attachment?: Attachment }) {
   const [open, setOpen] = useState(false)
+  const [hoverAt, setHoverAt] = useState<{ left: number; top: number } | null>(null)
+  const btn = useRef<HTMLButtonElement>(null)
+  const url = useImageUrl(attachment ?? ({ id: '', storage_path: '' } as Attachment), !!hoverAt && !!attachment && !open)
   if (!attachment) return null
+  const showHover = () => {
+    const r = btn.current?.getBoundingClientRect()
+    if (r) setHoverAt({ left: Math.max(8, Math.min(r.right - 160, window.innerWidth - 168)), top: r.bottom + 4 })
+  }
   return (
     <>
-      <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm !min-h-7 !px-2 !py-0.5 text-xs"
-        onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(true) }}>
+      <button ref={btn} type="button" className="dash-btn dash-btn-ghost dash-btn-sm !min-h-7 !px-2 !py-0.5 text-xs"
+        onMouseEnter={showHover} onMouseLeave={() => setHoverAt(null)}
+        onClick={e => { e.preventDefault(); e.stopPropagation(); setHoverAt(null); setOpen(true) }}>
         <ImageIcon className="h-3.5 w-3.5" aria-hidden /> Превью
       </button>
+      {hoverAt && !open && createPortal(
+        <div className="pointer-events-none fixed z-50 w-40 overflow-hidden rounded-lg border border-[var(--d-line)] bg-[var(--d-surface)] p-1 shadow-lg"
+          style={{ left: hoverAt.left, top: hoverAt.top }}>
+          {url.data
+            ? <img src={url.data} alt="" className="h-32 w-full rounded object-cover" />
+            : <div className="grid h-32 place-items-center"><Loader2 className="dash-muted h-4 w-4 animate-spin" aria-hidden /></div>}
+        </div>,
+        document.body,
+      )}
       <ImagePreview file={open ? attachment : null} onClose={() => setOpen(false)} description={attachment.description || undefined} />
     </>
   )
