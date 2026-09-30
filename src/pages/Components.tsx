@@ -11,6 +11,7 @@ import {
   ComponentForm, ComponentStatusChip, DictChip, DictEditor, EMPTY_COMPONENT, Price, Stock, useDicts, useRates, useSuppliers,
 } from '../catalogParts'
 import { fmtMoney, toRub } from '../money'
+import { PreviewChip, usePreviewMap } from '../shared'
 import { Modal, PageHeader, QueryState, errMsg, useToast } from '../ui'
 
 type Sort = 'name' | 'category' | 'supplier' | 'price' | 'stock' | 'location' | 'status' | 'updated'
@@ -87,6 +88,7 @@ export default function Components() {
     })
   }, [all, q, cat, sup, status, reorder, noPrice, sort, dir, rates.data, dicts.data, sups.data]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const previews = usePreviewMap(items)
   const reorderCount = all.filter(needsReorder).length
   const noPriceCount = all.filter(c => c.price === 0).length
   const stockValue = all.reduce((s, c) => s + Math.max(c.stock, 0) * rub(c), 0)
@@ -220,6 +222,7 @@ export default function Components() {
                     </button>
                   </th>
                 ))}
+                <th className="px-3 py-3 font-medium">Превью</th>
               </tr>
             </thead>
             <tbody>
@@ -240,6 +243,7 @@ export default function Components() {
                   <td className="px-3 py-3 text-right"><Stock c={c} /><ReservedNote id={c.id} stock={c.stock} unit={c.unit} /></td>
                   <td className="dash-muted px-3 py-3">{c.location || '—'}</td>
                   <td className="px-4 py-3"><ComponentStatusChip status={c.status} /></td>
+                  <td className="px-3 py-3"><PreviewChip attachment={c.preview_attachment_id ? previews.get(c.preview_attachment_id) : undefined} /></td>
                 </tr>
               ))}
             </tbody>
@@ -264,6 +268,7 @@ export default function Components() {
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                   <DictChip dict={c.category_id ? catById.get(c.category_id) : null} />
+                  <PreviewChip attachment={c.preview_attachment_id ? previews.get(c.preview_attachment_id) : undefined} />
                   <span className="ml-auto text-right"><Stock c={c} /><ReservedNote id={c.id} stock={c.stock} unit={c.unit} /></span>
                 </div>
               </Link>

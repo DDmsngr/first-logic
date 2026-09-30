@@ -286,6 +286,12 @@ export async function fetchAttachment(id: string) {
   return check(await supabase.from('ws_attachments').select('*').eq('id', id).maybeSingle()) as Attachment | null
 }
 
+/** Пачкой — для превью в списках: одним запросом на все выбранные id. */
+export async function fetchAttachmentsByIds(ids: string[]) {
+  if (!ids.length) return []
+  return check(await supabase.from('ws_attachments').select('*').in('id', ids)) as Attachment[]
+}
+
 export const isImage = (a: Pick<Attachment, 'mime' | 'filename'>) =>
   (a.mime ?? '').startsWith('image/') || /\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(a.filename)
 

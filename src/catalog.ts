@@ -151,6 +151,7 @@ export interface Component {
   status: ComponentStatus
   location: string | null
   notes: string
+  preview_attachment_id: string | null
   created_at: string
   updated_at: string
   archived_at: string | null
@@ -206,7 +207,7 @@ export async function createComponentsBulk(workspaceId: string, items: Component
   return rows.length
 }
 
-export async function updateComponent(id: string, patch: Partial<ComponentInput & { archived_at: string | null }>) {
+export async function updateComponent(id: string, patch: Partial<ComponentInput & { archived_at: string | null; preview_attachment_id: string | null }>) {
   one(check(await supabase.from('fl_components').update(patch).eq('id', id).select('id')), 'Компонент')
 }
 
@@ -247,6 +248,7 @@ export interface Product {
   cost_override: number | null
   planned_qty: number
   test_params: TestParam[]
+  preview_attachment_id: string | null
   created_at: string
   updated_at: string
   archived_at: string | null
@@ -280,7 +282,7 @@ export async function createProduct(workspaceId: string, p: ProductInput) {
 
 export type ProductCostPatch = Partial<Pick<Product, 'manufacturing_cost' | 'additional_cost' | 'overhead_pct' | 'cost_override' | 'planned_qty' | 'test_params'>>
 
-export async function updateProduct(id: string, patch: Partial<ProductInput & { archived_at: string | null }> & ProductCostPatch) {
+export async function updateProduct(id: string, patch: Partial<ProductInput & { archived_at: string | null; preview_attachment_id: string | null }> & ProductCostPatch) {
   one(check(await supabase.from('fl_products').update(patch).eq('id', id).select('id')), 'Изделие')
 }
 
@@ -303,6 +305,7 @@ export interface Assembly {
   description: string
   cost_override: number | null
   notes: string
+  preview_attachment_id: string | null
   created_at: string
   updated_at: string
   archived_at: string | null
@@ -326,7 +329,7 @@ export async function createAssembly(workspaceId: string, a: AssemblyInput) {
   return asm(check(await supabase.from('fl_assemblies').insert({ workspace_id: workspaceId, ...a }).select().single()) as Assembly)
 }
 
-export async function updateAssembly(id: string, patch: Partial<AssemblyInput & { archived_at: string | null }>) {
+export async function updateAssembly(id: string, patch: Partial<AssemblyInput & { archived_at: string | null; preview_attachment_id: string | null }>) {
   one(check(await supabase.from('fl_assemblies').update(patch).eq('id', id).select('id')), 'Узел')
 }
 

@@ -7,6 +7,7 @@ import { useWorkspace } from '../auth'
 import { AssemblyForm, EMPTY_ASSEMBLY, useCosting } from '../catalogParts'
 import { uniqueWarnings } from '../costing'
 import { fmtMoney } from '../money'
+import { PreviewChip, usePreviewMap } from '../shared'
 import { Modal, PageHeader, QueryState, errMsg, useToast } from '../ui'
 
 export default function Assemblies() {
@@ -29,6 +30,7 @@ export default function Assemblies() {
   const needle = q.trim().toLowerCase()
   const items = c.assemblies
     .filter(a => !!a.archived_at === archived && (!needle || [a.name, a.sku, a.description].some(v => v?.toLowerCase().includes(needle))))
+  const previews = usePreviewMap(items)
 
   const create = useMutation({
     mutationFn: (a: AssemblyInput) => createAssembly(workspace.id, a),
@@ -67,6 +69,7 @@ export default function Assemblies() {
                       <div className="font-medium">{a.name}</div>
                       <div className="dash-muted dash-mono text-xs">{a.sku || '—'}</div>
                     </div>
+                    <PreviewChip attachment={a.preview_attachment_id ? previews.get(a.preview_attachment_id) : undefined} />
                   </div>
                   {a.description && <p className="dash-muted mt-2 line-clamp-2 text-sm">{a.description}</p>}
                   <div className="mt-auto flex items-end justify-between gap-2 pt-4">

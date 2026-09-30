@@ -15,7 +15,7 @@ import { EconomicsCard } from '../economics'
 import { unitEconomics } from '../costing'
 import { fmtMoney, toRub } from '../money'
 import Md from '../Md'
-import { ActivityList, FileList, UploadButton } from '../shared'
+import { ActivityList, FileList, PreviewBox, UploadButton } from '../shared'
 import { CreateTaskModal, DueLabel, PriorityChip, StatusChip } from '../taskParts'
 import { Avatar, PageHeader, QueryState, errMsg, useToast } from '../ui'
 
@@ -41,7 +41,7 @@ export default function ProductDetail() {
   const rates = useRates()
 
   const save = useMutation({
-    mutationFn: (patch: Partial<ProductInput & { archived_at: string | null }>) => updateProduct(id, patch),
+    mutationFn: (patch: Partial<ProductInput & { archived_at: string | null; preview_attachment_id: string | null }>) => updateProduct(id, patch),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['product', id] })
       qc.invalidateQueries({ queryKey: ['products'] })
@@ -198,6 +198,9 @@ export default function ProductDetail() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="dash-card min-w-0 p-4" aria-label="Фото и документы">
+          <PreviewBox target={{ productId: p.id }} attachment={files.data?.find(f => f.id === p.preview_attachment_id) ?? null}
+            onSet={id => save.mutate({ preview_attachment_id: id })} />
+          <div className="my-4 border-t border-[var(--d-line)]" />
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="dash-label">Фото и документы · {files.data?.length ?? 0}</h2>
             <UploadButton target={{ productId: p.id }} label="Прикрепить" />

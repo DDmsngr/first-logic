@@ -10,7 +10,7 @@ import { fetchAttachments } from '../api'
 import { ComponentForm, ComponentStatusChip, DictChip, Price, Stock, useDicts, useRates, useSuppliers } from '../catalogParts'
 import { fmtMoney, fmtQty, parseAmount, toRub } from '../money'
 import { fmtDateTime } from '../meta'
-import { ActivityList, FileList, UploadButton } from '../shared'
+import { ActivityList, FileList, PreviewBox, UploadButton } from '../shared'
 import { UsedIn } from '../bom'
 import { PageHeader, QueryState, errMsg, useToast } from '../ui'
 
@@ -34,7 +34,7 @@ export default function ComponentDetail() {
     qc.invalidateQueries({ queryKey: ['activity'] })
   }
   const save = useMutation({
-    mutationFn: (patch: Partial<ComponentInput & { archived_at: string | null }>) => updateComponent(id, patch),
+    mutationFn: (patch: Partial<ComponentInput & { archived_at: string | null; preview_attachment_id: string | null }>) => updateComponent(id, patch),
     onSuccess: refresh,
     onError: e => toast(errMsg(e), 'error'),
   })
@@ -146,6 +146,9 @@ export default function ComponentDetail() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="dash-card min-w-0 p-4" aria-label="Фото и документы">
+          <PreviewBox target={{ componentId: c.id }} attachment={files.data?.find(a => a.id === c.preview_attachment_id) ?? null}
+            onSet={id => save.mutate({ preview_attachment_id: id })} />
+          <div className="my-4 border-t border-[var(--d-line)]" />
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="dash-label">Фото и документы · {files.data?.length ?? 0}</h2>
             <UploadButton target={{ componentId: c.id }} label="Прикрепить" />

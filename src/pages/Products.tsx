@@ -6,6 +6,7 @@ import { createProduct, fetchProducts, sellingPrice, type ProductInput } from '.
 import { fetchTasks } from '../api'
 import { useWorkspace } from '../auth'
 import { DictChip, DictEditor, EMPTY_PRODUCT, Price, ProductForm, useDicts } from '../catalogParts'
+import { PreviewChip, usePreviewMap } from '../shared'
 import { Modal, PageHeader, QueryState, errMsg, useToast } from '../ui'
 
 export default function Products() {
@@ -44,6 +45,7 @@ export default function Products() {
     .filter(p => (!needle || [p.name, p.sku, p.version, p.description].some(v => v?.toLowerCase().includes(needle)))
       && (!status || (status === 'none' ? !p.status_id : p.status_id === status)))
     .sort((a, b) => statusPos(a.status_id) - statusPos(b.status_id) || a.name.localeCompare(b.name, 'ru'))
+  const previews = usePreviewMap(items)
 
   const create = useMutation({
     mutationFn: (p: ProductInput) => createProduct(workspace.id, p),
@@ -89,7 +91,10 @@ export default function Products() {
                       <div className="font-medium">{p.name}{p.version && <span className="dash-muted ml-1.5 font-normal">{p.version}</span>}</div>
                       <div className="dash-muted dash-mono text-xs">{p.sku || '—'}</div>
                     </div>
-                    <DictChip dict={p.status_id ? statusById.get(p.status_id) : null} />
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <PreviewChip attachment={p.preview_attachment_id ? previews.get(p.preview_attachment_id) : undefined} />
+                      <DictChip dict={p.status_id ? statusById.get(p.status_id) : null} />
+                    </div>
                   </div>
                   {p.description && <p className="dash-muted mt-2 line-clamp-2 text-sm">{p.description}</p>}
                   {p.specs.length > 0 && (

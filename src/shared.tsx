@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, ExternalLink, FileText, Trash2, Upload } from 'lucide-react'
+import { Download, ExternalLink, FileText, Image as ImageIcon, Trash2, Upload } from 'lucide-react'
 import {
-  PAGE, deleteAttachment, fetchActivity, fileLabels, isImage, signedUrl, updateAttachment, uploadFile, type UploadTarget,
+  PAGE, deleteAttachment, fetchActivity, fetchAttachmentsByIds, fileLabels, isImage, signedUrl, updateAttachment, uploadFile, type UploadTarget,
 } from './api'
 import { useWorkspace } from './auth'
 import { DOC_TYPES, describeActivity, fmtDateTime, fmtSize, timeAgo } from './meta'
@@ -112,7 +112,7 @@ export function UploadButton({ target, label = 'Прикрепить файлы'
 // ── превью ──────────────────────────────────────────────────────────────────
 
 /** Ссылка на картинку живёт час; кеш чуть меньше, чтобы не отдавать протухшую. */
-function useImageUrl(a: Attachment, enabled = true) {
+export function useImageUrl(a: Attachment, enabled = true) {
   return useQuery({
     queryKey: ['img-url', a.id],
     queryFn: () => signedUrl(a.storage_path, undefined, 3600),
@@ -132,14 +132,96 @@ export function Thumb({ file, size = 48 }: { file: Attachment; size?: number }) 
     : <span className="shrink-0 rounded-lg border border-[var(--d-line)] bg-[var(--d-bg)]" style={box} aria-hidden />
 }
 
-export function ImagePreview({ file, onClose }: { file: Attachment | null; onClose: () => void }) {
+export function ImagePreview({ file, onClose, description }: { file: Attachment | null; onClose: () => void; description?: string }) {
   const url = useImageUrl(file ?? ({ id: '', storage_path: '' } as Attachment), !!file)
   return (
     <Modal open={!!file} onClose={onClose} title={file?.filename ?? ''}>
       {url.data
-        ? <img src={url.data} alt={file?.filename} className="mx-auto max-h-[70dvh] max-w-full rounded-lg object-contain" />
+        ? <>
+            <img src={url.data} alt={file?.filename} className="mx-auto max-h-[70dvh] max-w-full rounded-lg object-contain" />
+            {description && <p className="mt-3 whitespace-pre-wrap text-sm">{description}</p>}
+          </>
         : <div className="py-10 text-center"><Spinner /></div>}
     </Modal>
+  )
+}
+
+// ── превью карточки (компонент/узел/изделие) ───────────────────────────────
+
+/**
+ * Блок «Превью» внутри карточки: одно фото + необязательное описание.
+ * Само фото остаётся обычным вложением (attachment); поле на сущности —
+ * только ссылка на него, задаётся через onSet.
+ */
+export function PreviewBox({ target, attachment, onSet }: {
+  target: UploadTarget; attachment: Attachment | null; onSet: (attachmentId: string | null) => void
+}) {
+  const { workspace, userId } = useWorkspace()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const input = useRef<HTMLInputElement>(null)
+  const [zoom, setZoom] = useState(false)
+
+  const upload = useMutation({
+    mutationFn: (file: File) => uploadFile(workspace.id, userId, file, target, 'photo'),
+    onSuccess: a => { onSet(a.id); qc.invalidateQueries({ queryKey: ['attachments'] }) },
+    onError: e => toast(errMsg(e), 'error'),
+  })
+  const desc = useMutation({
+    mutationFn: (description: string) => updateAttachment(attachment!.id, { description }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['attachments'] }),
+    onError: e => toast(errMsg(e), 'error'),
+  })
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="dash-label">Превью</h2>
+        <div className="flex items-center gap-1.5">
+          <input ref={input} type="file" accept="image/*" className="sr-only" tabIndex={-1} aria-label="Загрузить превью"
+            onChange={e => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = '' }} />
+          <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" disabled={upload.isPending} onClick={() => input.current?.click()}>
+            {upload.isPending ? <Spinner label="Загружаем" /> : <><Upload className="h-4 w-4" aria-hidden /> {attachment ? 'Заменить' : 'Загрузить'}</>}
+          </button>
+          {attachment && (
+            <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm" onClick={() => onSet(null)}>Убрать</button>
+          )}
+        </div>
+      </div>
+      {attachment ? (
+        <>
+          <button type="button" onClick={() => setZoom(true)} aria-label="Открыть превью крупнее">
+            <Thumb file={attachment} size={160} />
+          </button>
+          <textarea key={attachment.id} className="dash-input mt-2" placeholder="Описание (необязательно)" rows={2}
+            defaultValue={attachment.description}
+            onBlur={e => { if (e.target.value !== attachment.description) desc.mutate(e.target.value) }} />
+        </>
+      ) : <p className="dash-muted text-sm">Фото не загружено</p>}
+      <ImagePreview file={zoom ? attachment : null} onClose={() => setZoom(false)} description={attachment?.description || undefined} />
+    </div>
+  )
+}
+
+/** Превью для всех строк списка одним запросом, по набору preview_attachment_id. */
+export function usePreviewMap(items: { preview_attachment_id: string | null }[]) {
+  const ids = [...new Set(items.map(i => i.preview_attachment_id).filter((x): x is string => !!x))].sort()
+  const q = useQuery({ queryKey: ['previews', ids.join(',')], queryFn: () => fetchAttachmentsByIds(ids), enabled: ids.length > 0 })
+  return new Map((q.data ?? []).map(a => [a.id, a]))
+}
+
+/** Кнопка «Превью» в строке/карточке списка: клик открывает фото и описание, не переходя по ссылке. */
+export function PreviewChip({ attachment }: { attachment?: Attachment }) {
+  const [open, setOpen] = useState(false)
+  if (!attachment) return null
+  return (
+    <>
+      <button type="button" className="dash-btn dash-btn-ghost dash-btn-sm !min-h-7 !px-2 !py-0.5 text-xs"
+        onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(true) }}>
+        <ImageIcon className="h-3.5 w-3.5" aria-hidden /> Превью
+      </button>
+      <ImagePreview file={open ? attachment : null} onClose={() => setOpen(false)} description={attachment.description || undefined} />
+    </>
   )
 }
 
